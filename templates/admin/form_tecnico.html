@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}{% if tecnico %}Editar Técnico{% else %}Nuevo Técnico{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">
+    {% if tecnico %}✏️ Editar Técnico: {{ tecnico.display_name }}{% else %}👤 Nuevo Técnico{% endif %}
+  </h2>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">← Volver</a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="card shadow-sm border-0">
+      <div class="card-header fw-semibold bg-primary text-white">
+        {% if tecnico %}Editar perfil{% else %}Crear nuevo técnico{% endif %}
+      </div>
+      <div class="card-body">
+        <form method="POST">
+
+          {% if not tecnico %}
+          <!-- Usuario (solo en creación) -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Usuario <span class="text-danger">*</span></label>
+            <input type="text" name="username" class="form-control"
+                   placeholder="nombre_usuario" required autocomplete="off">
+            <div class="form-text">Solo letras, números y guiones. Sin espacios.</div>
+          </div>
+          {% else %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Usuario</label>
+            <input type="text" class="form-control" value="{{ tecnico.username }}" disabled>
+          </div>
+          {% endif %}
+
+          <!-- Contraseña -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              Contraseña {% if not tecnico %}<span class="text-danger">*</span>{% endif %}
+            </label>
+            <input type="password" name="password" class="form-control"
+                   {% if not tecnico %}required{% endif %}
+                   placeholder="{% if tecnico %}Dejar vacío para no cambiar{% else %}Contraseña segura{% endif %}"
+                   autocomplete="new-password">
+            {% if tecnico %}
+            <div class="form-text">Dejar vacío para mantener la contraseña actual.</div>
+            {% endif %}
+          </div>
+
+          <hr class="my-3">
+
+          <!-- Nombre completo -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nombre completo</label>
+            <input type="text" name="nombre_completo" class="form-control"
+                   value="{{ tecnico.nombre_completo or '' if tecnico else '' }}"
+                   placeholder="Nombre y apellidos">
+          </div>
+
+          <!-- Teléfono -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Teléfono de contacto</label>
+            <input type="tel" name="telefono_perfil" class="form-control"
+                   value="{{ tecnico.telefono_perfil or '' if tecnico else '' }}"
+                   placeholder="600 000 000">
+          </div>
+
+          <!-- Telegram Chat ID -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Telegram Chat ID</label>
+            <input type="text" name="telegram_chat_id" class="form-control"
+                   value="{{ tecnico.telegram_chat_id or '' if tecnico else '' }}"
+                   placeholder="Ej: 123456789">
+            <div class="form-text">
+              Para recibir notificaciones. El técnico puede obtener su ID hablando con
+              <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a>.
+            </div>
+          </div>
+
+          <!-- Rol -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Rol</label>
+            <select name="rol" class="form-select"
+                    {% if tecnico and tecnico.username == 'admin' %}disabled{% endif %}>
+              <option value="tecnico" {% if tecnico and tecnico.rol == 'tecnico' %}selected{% elif not tecnico %}selected{% endif %}>
+                Técnico
+              </option>
+              <option value="admin" {% if tecnico and tecnico.rol == 'admin' %}selected{% endif %}>
+                Administrador
+              </option>
+            </select>
+            {% if tecnico and tecnico.username == 'admin' %}
+            <div class="form-text text-warning">El usuario admin siempre es administrador.</div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary flex-grow-1">
+              {% if tecnico %}💾 Guardar cambios{% else %}✅ Crear técnico{% endif %}
+            </button>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

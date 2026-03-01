@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Gestión de Técnicos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">👥 Gestión de Técnicos</h2>
+  <a href="{{ url_for('admin.nuevo_tecnico') }}" class="btn btn-success">+ Nuevo técnico</a>
+</div>
+
+<div class="row g-3">
+  {% for tecnico in tecnicos %}
+  {% set s = stats[tecnico.id] %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card shadow-sm border-0 h-100
+      {% if not tecnico.is_active %}opacity-50{% endif %}
+      border-start border-4
+      {% if tecnico.rol == 'admin' %}border-danger{% else %}border-primary{% endif %}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="fw-bold fs-5">{{ tecnico.display_name }}</div>
+            <div class="text-muted small">@{{ tecnico.username }}</div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-1">
+            <span class="badge {% if tecnico.rol == 'admin' %}bg-danger{% else %}bg-primary{% endif %}">
+              {{ tecnico.rol }}
+            </span>
+            <span class="badge {% if tecnico.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+              {% if tecnico.is_active %}Activo{% else %}Inactivo{% endif %}
+            </span>
+          </div>
+        </div>
+
+        {% if tecnico.telefono_perfil %}
+        <div class="small mb-1">
+          <a href="tel:{{ tecnico.telefono_perfil }}" class="text-decoration-none">📞 {{ tecnico.telefono_perfil }}</a>
+        </div>
+        {% endif %}
+        {% if tecnico.telegram_chat_id %}
+        <div class="small text-muted mb-2">📲 Chat ID: <code>{{ tecnico.telegram_chat_id }}</code></div>
+        {% endif %}
+
+        <!-- Estadísticas -->
+        <div class="row g-2 text-center mt-1 mb-3">
+          <div class="col-3">
+            <div class="fw-bold text-primary">{{ s.activos }}</div>
+            <div class="small text-muted">Activos</div>
+          </div>
+          <div class="col-3">
+            <div class="fw-bold text-success">{{ s.finalizados }}</div>
+            <div class="small text-muted">Hechos</div>
+          </div>
+          <div class="col-3">
+            <div class="fw-bold text-danger">{{ s.morosos }}</div>
+            <div class="small text-muted">Morosos</div>
+          </div>
+          <div class="col-3">
+            <div class="fw-bold text-secondary">{{ s.total }}</div>
+            <div class="small text-muted">Total</div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('admin.editar_tecnico', id=tecnico.id) }}"
+             class="btn btn-sm btn-outline-primary flex-grow-1">✏️ Editar</a>
+          {% if tecnico.username != 'admin' %}
+          <form method="POST" action="{{ url_for('admin.toggle_tecnico', id=tecnico.id) }}">
+            <button type="submit" class="btn btn-sm {% if tecnico.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+              {% if tecnico.is_active %}Desactivar{% else %}Activar{% endif %}
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Todos los Avisos{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">📂 Todos los Avisos</h2>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('exports.export_excel') }}{% if q or estado_filter %}?q={{ q }}&estado={{ estado_filter }}{% endif %}"
+       class="btn btn-sm btn-outline-success">📊 Excel</a>
+    <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success">+ Nuevo</a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="GET" action="{{ url_for('avisos.list_all') }}" class="card shadow-sm border-0 mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-5">
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="🔍 Buscar por nombre, teléfono o calle..." id="search-input">
+      </div>
+      <div class="col-12 col-md-4">
+        <select name="estado" class="form-select">
+          <option value="">Todos los estados</option>
+          {% for key, label in estados %}
+            <option value="{{ key }}" {% if estado_filter == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Buscar</button>
+      </div>
+      <div class="col-6 col-md-1">
+        <a href="{{ url_for('avisos.list_all') }}" class="btn btn-outline-secondary w-100">✕</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Resultados -->
+{% if avisos.items %}
+  <div class="text-muted small mb-2">
+    {{ avisos.total }} aviso{{ 's' if avisos.total != 1 }} encontrado{{ 's' if avisos.total != 1 }}
+    {% if q %} · Búsqueda: "<strong>{{ q }}</strong>"{% endif %}
+  </div>
+
+  {% for aviso in avisos.items %}
+    {% include 'partials/aviso_card.html' %}
+  {% endfor %}
+
+  <!-- Paginación -->
+  {% if avisos.pages > 1 %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center flex-wrap">
+      {% if avisos.has_prev %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('avisos.list_all', page=avisos.prev_num, q=q, estado=estado_filter) }}">‹ Anterior</a>
+        </li>
+      {% endif %}
+      {% for p in avisos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          <li class="page-item {% if p == avisos.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('avisos.list_all', page=p, q=q, estado=estado_filter) }}">{{ p }}</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      {% if avisos.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('avisos.list_all', page=avisos.next_num, q=q, estado=estado_filter) }}">Siguiente ›</a>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+{% else %}
+  <div class="text-center py-5 text-muted">
+    <div style="font-size:3rem">📋</div>
+    <p class="mt-2">No se encontraron avisos{% if q %} para "<strong>{{ q }}</strong>"{% endif %}</p>
+    <a href="{{ url_for('avisos.create') }}" class="btn btn-success">+ Crear nuevo aviso</a>
+  </div>
+{% endif %}
+{% endblock %}

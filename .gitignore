@@ -1,0 +1,30 @@
+# Entorno y secretos
+.env
+*.pyc
+__pycache__/
+*.pyo
+
+# Base de datos local
+instance/
+*.db
+*.sqlite3
+
+# Fotos subidas (no versionar)
+uploads/
+
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

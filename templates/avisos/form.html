@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+{% block title %}{% if aviso %}Editar Aviso #{{ aviso.id }}{% else %}Nuevo Aviso{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">
+    {% if aviso %}✏️ Editar Aviso <span class="text-muted">#{{ aviso.id }}</span>{% else %}+ Nuevo Aviso{% endif %}
+  </h2>
+  <a href="{{ url_for('dashboard.index') }}" class="btn btn-sm btn-outline-secondary">← Volver</a>
+</div>
+
+<form method="POST"
+      action="{% if aviso %}{{ url_for('avisos.edit', id=aviso.id) }}{% else %}{{ url_for('avisos.create') }}{% endif %}"
+      enctype="multipart/form-data">
+
+  <div class="row g-3">
+
+    <!-- Datos del cliente -->
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold bg-primary text-white">👤 Datos del Cliente</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">Nombre <span class="text-danger">*</span></label>
+              <input type="text" name="nombre_cliente" class="form-control form-control-lg"
+                     value="{{ aviso.nombre_cliente if aviso else '' }}"
+                     placeholder="Nombre completo" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Teléfono <span class="text-danger">*</span></label>
+              <input type="tel" name="telefono" class="form-control form-control-lg"
+                     value="{{ aviso.telefono if aviso else '' }}"
+                     placeholder="600 000 000" required>
+              {% if aviso %}
+                <div class="mt-1">
+                  <a href="{{ url_for('avisos.customer_history', telefono=aviso.telefono) }}"
+                     class="small text-primary">📋 Ver historial del cliente</a>
+                </div>
+              {% endif %}
+            </div>
+            <div class="col-12 col-md-8">
+              <label class="form-label">Calle / Dirección</label>
+              <input type="text" name="calle" class="form-control"
+                     value="{{ aviso.calle if aviso else '' }}"
+                     placeholder="Calle, número, piso...">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Localidad</label>
+              <input type="text" name="localidad" class="form-control"
+                     value="{{ aviso.localidad if aviso else '' }}"
+                     placeholder="Ciudad o municipio">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Datos del electrodoméstico -->
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold bg-secondary text-white">🔧 Electrodoméstico</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">Tipo de Electrodoméstico</label>
+              <input type="text" name="electrodomestico" class="form-control"
+                     value="{{ aviso.electrodomestico if aviso else '' }}"
+                     placeholder="Lavadora, Frigorífico..."
+                     list="lista-electros">
+              <datalist id="lista-electros">
+                {% for e in electrodomesticos %}
+                  <option value="{{ e }}">
+                {% endfor %}
+              </datalist>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Marca</label>
+              <input type="text" name="marca" class="form-control"
+                     value="{{ aviso.marca if aviso else '' }}"
+                     placeholder="Samsung, Bosch, LG...">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Descripción de la Avería</label>
+              <textarea name="descripcion" class="form-control" rows="3"
+                        placeholder="Describe el problema...">{{ aviso.descripcion if aviso else '' }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fechas y estado -->
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold bg-info text-dark">📅 Fechas y Estado</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label">Fecha del Aviso</label>
+              <input type="date" name="fecha_aviso" class="form-control"
+                     value="{{ aviso.fecha_aviso.strftime('%Y-%m-%d') if aviso and aviso.fecha_aviso else '' }}">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Fecha de Cita</label>
+              <input type="date" name="fecha_cita" class="form-control"
+                     value="{{ aviso.fecha_cita.strftime('%Y-%m-%d') if aviso and aviso.fecha_cita else '' }}">
+              {% if aviso and aviso.fecha_cita %}
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" name="limpiar_cita" id="limpiar_cita">
+                  <label class="form-check-label small text-muted" for="limpiar_cita">Quitar fecha de cita</label>
+                </div>
+              {% endif %}
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Estado</label>
+              <select name="estado" class="form-select form-select-lg">
+                {% for key, label in estados %}
+                  <option value="{{ key }}"
+                    {% if aviso and aviso.estado == key %}selected
+                    {% elif not aviso and key == 'pendiente' %}selected
+                    {% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notas -->
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold">📝 Notas internas</div>
+        <div class="card-body">
+          <textarea name="notas" class="form-control" rows="2"
+                    placeholder="Notas adicionales, materiales necesarios...">{{ aviso.notas if aviso else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Asignación de técnico (solo admin) -->
+    {% if current_user.es_admin %}
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold bg-dark text-white">👤 Asignación</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">Técnico asignado</label>
+              <select name="asignado_a" class="form-select">
+                <option value="">— Sin asignar —</option>
+                {% for t in tecnicos %}
+                  <option value="{{ t.id }}"
+                    {% if aviso and aviso.asignado_a == t.id %}selected{% endif %}>
+                    {{ t.display_name }} (@{{ t.username }})
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Datos económicos -->
+    <div class="col-12">
+      <div class="card shadow-sm border-0 border-start border-4 border-success">
+        <div class="card-header fw-semibold bg-success text-white">💶 Datos Económicos</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-3">
+              <label class="form-label">Mano de obra (€)</label>
+              <input type="number" name="precio_mano_obra" class="form-control econ-field"
+                     step="0.01" min="0"
+                     value="{{ '%.2f'|format(aviso.precio_mano_obra) if aviso and aviso.precio_mano_obra is not none else '' }}"
+                     placeholder="0.00">
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label">Gastos extra (€)</label>
+              <input type="number" name="gastos_extra" class="form-control econ-field"
+                     step="0.01" min="0"
+                     value="{{ '%.2f'|format(aviso.gastos_extra) if aviso and aviso.gastos_extra is not none else '' }}"
+                     placeholder="0.00">
+              <input type="text" name="gastos_extra_desc" class="form-control mt-1"
+                     value="{{ aviso.gastos_extra_desc or '' if aviso else '' }}"
+                     placeholder="Ej: Desplazamiento urgente">
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label">Descuento (€)</label>
+              <input type="number" name="descuento" class="form-control econ-field"
+                     step="0.01" min="0"
+                     value="{{ '%.2f'|format(aviso.descuento) if aviso and aviso.descuento is not none else '' }}"
+                     placeholder="0.00">
+            </div>
+            <div class="col-12 col-md-3">
+              <label class="form-label">Total cliente</label>
+              <div class="form-control bg-light fw-bold text-primary" id="total-preview">
+                {% if aviso and aviso.tiene_datos_economicos %}
+                  {{ '%.2f'|format(aviso.total_cliente) }} €
+                {% else %}
+                  — €
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Coste materiales interno (€)</label>
+              <input type="number" name="coste_materiales" class="form-control econ-field"
+                     step="0.01" min="0"
+                     value="{{ '%.2f'|format(aviso.coste_materiales) if aviso and aviso.coste_materiales is not none else '' }}"
+                     placeholder="0.00">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Beneficio neto</label>
+              <div class="form-control bg-light fw-bold text-success" id="beneficio-preview">
+                {% if aviso and aviso.tiene_datos_economicos %}
+                  {{ '%.2f'|format(aviso.beneficio) }} €
+                {% else %}
+                  — €
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Estado de cobro</label>
+              <select name="cobro_estado" class="form-select">
+                {% for key, label in cobro_estados %}
+                  <option value="{{ key }}"
+                    {% if aviso and aviso.cobro_estado == key %}selected
+                    {% elif not aviso and key == 'pendiente' %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Piezas / materiales usados</label>
+              <textarea name="materiales_desc" class="form-control" rows="2"
+                        placeholder="Ej: Escobillas motor ref. 481281718599, correa 1270 J4...">{{ aviso.materiales_desc if aviso else '' }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fotos -->
+    <div class="col-12">
+      <div class="card shadow-sm border-0">
+        <div class="card-header fw-semibold">📷 Fotos</div>
+        <div class="card-body">
+
+          <!-- Fotos existentes -->
+          {% if aviso and aviso.photos %}
+            <div class="mb-3">
+              <p class="small text-muted mb-2">Fotos actuales (click en la X para eliminar):</p>
+              <div class="row g-2" id="existing-photos">
+                {% for photo in aviso.photos %}
+                  <div class="col-4 col-md-2 position-relative">
+                    <img src="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}"
+                         class="img-thumbnail w-100"
+                         style="height:90px;object-fit:cover;cursor:pointer"
+                         onclick="window.open(this.src,'_blank')"
+                         alt="{{ photo.original_name }}">
+                    <form method="POST"
+                          action="{{ url_for('avisos.delete_photo', aviso_id=aviso.id, photo_id=photo.id) }}"
+                          class="position-absolute top-0 end-0 m-1"
+                          onsubmit="return confirm('¿Eliminar esta foto?')">
+                      <button type="submit" class="btn btn-danger btn-sm rounded-circle p-0 lh-1"
+                              style="width:22px;height:22px;font-size:12px">×</button>
+                    </form>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- Subir nuevas fotos -->
+          <label class="form-label">Añadir fotos</label>
+          <input type="file" name="photos" id="photos-input" class="form-control"
+                 accept="image/*" multiple capture="environment">
+          <div class="form-text">Puedes seleccionar varias fotos. Formatos: JPG, PNG, WEBP, GIF</div>
+
+          <!-- Preview de nuevas fotos -->
+          <div class="row g-2 mt-2" id="photo-preview"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+
+  <!-- Botones de acción -->
+  <div class="d-flex gap-2 mt-4 mb-5 flex-wrap">
+    <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+      {% if aviso %}💾 Guardar cambios{% else %}✅ Crear aviso{% endif %}
+    </button>
+    {% if aviso %}
+      <a href="{{ url_for('avisos.detail', id=aviso.id) }}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+    {% else %}
+      <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+    {% endif %}
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cálculo totales en tiempo real
+function calcTotales() {
+  const mano    = parseFloat(document.querySelector('[name=precio_mano_obra]')?.value) || 0;
+  const gastos  = parseFloat(document.querySelector('[name=gastos_extra]')?.value) || 0;
+  const desc    = parseFloat(document.querySelector('[name=descuento]')?.value) || 0;
+  const coste   = parseFloat(document.querySelector('[name=coste_materiales]')?.value) || 0;
+  const total   = Math.max(mano + gastos - desc, 0);
+  const benef   = total - coste;
+
+  const elTotal = document.getElementById('total-preview');
+  const elBen   = document.getElementById('beneficio-preview');
+  if (elTotal) elTotal.textContent = total.toFixed(2) + ' €';
+  if (elBen) {
+    elBen.textContent = benef.toFixed(2) + ' €';
+    elBen.className = 'form-control bg-light fw-bold ' + (benef >= 0 ? 'text-success' : 'text-danger');
+  }
+}
+document.querySelectorAll('.econ-field').forEach(el => el.addEventListener('input', calcTotales));
+
+// Preview de fotos antes de subir
+document.getElementById('photos-input')?.addEventListener('change', function() {
+  const preview = document.getElementById('photo-preview');
+  preview.innerHTML = '';
+  Array.from(this.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const col = document.createElement('div');
+      col.className = 'col-4 col-md-2';
+      col.innerHTML = `<img src="${e.target.result}" class="img-thumbnail w-100" style="height:90px;object-fit:cover" alt="preview">`;
+      preview.appendChild(col);
+    };
+    reader.readAsDataURL(file);
+  });
+});
+</script>
+{% endblock %}

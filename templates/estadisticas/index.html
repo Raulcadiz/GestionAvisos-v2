@@ -1,0 +1,298 @@
+{% extends 'base.html' %}
+{% block title %}Estadísticas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">📊 Estadísticas económicas</h2>
+  <div class="btn-group" role="group" id="periodo-btns">
+    <button class="btn btn-sm btn-outline-primary active" data-periodo="dia">30 días</button>
+    <button class="btn btn-sm btn-outline-primary" data-periodo="semana">Por semana</button>
+    <button class="btn btn-sm btn-outline-primary" data-periodo="mes">Por mes</button>
+  </div>
+</div>
+
+<!-- Tarjetas resumen -->
+<div class="row g-3 mb-4" id="resumen-cards">
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="fw-bold fs-4 text-primary" id="r-facturado">—</div>
+        <div class="small text-muted">Facturado este mes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="fw-bold fs-4 text-success" id="r-beneficio">—</div>
+        <div class="small text-muted">Beneficio este mes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="fw-bold fs-4 text-warning" id="r-pendiente">—</div>
+        <div class="small text-muted">Pendiente de cobro</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="fw-bold fs-4 text-danger" id="r-morosos">—</div>
+        <div class="small text-muted">Morosos</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="fw-bold fs-4 text-info" id="r-activos">—</div>
+        <div class="small text-muted">Avisos activos</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card border-0 shadow-sm text-center h-100">
+      <div class="card-body py-3">
+        <div class="fw-bold fs-4 text-secondary" id="r-finalizados">—</div>
+        <div class="small text-muted">Finalizados</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Gráfica ingresos -->
+  <div class="col-12 col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header fw-semibold">💶 Ingresos y beneficio</div>
+      <div class="card-body">
+        <canvas id="chart-ingresos" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top aparatos -->
+  <div class="col-12 col-lg-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header fw-semibold">🔧 Aparatos más reparados</div>
+      <div class="card-body">
+        <canvas id="chart-aparatos" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Técnicos (solo admin) -->
+  {% if current_user.es_admin %}
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header fw-semibold">👥 Rendimiento por técnico</div>
+      <div class="card-body">
+        <canvas id="chart-tecnicos" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Morosos -->
+  <div class="col-12 {% if current_user.es_admin %}col-lg-6{% endif %}">
+    <div class="card border-0 shadow-sm border-start border-4 border-danger">
+      <div class="card-header fw-semibold bg-danger text-white">
+        ⚠️ Morosos <span class="badge bg-white text-danger ms-1" id="badge-morosos">0</span>
+      </div>
+      <div class="card-body p-0">
+        <div id="tabla-morosos">
+          <div class="text-muted text-center py-3 small">Cargando...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let chartIngresos = null;
+let chartAparatos = null;
+let chartTecnicos = null;
+let periodoActual = 'dia';
+
+// ── Cargar resumen ─────────────────────────────────────────────────────────
+function cargarResumen() {
+  fetch('/stats/api/resumen')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('r-facturado').textContent  = d.facturado_mes.toFixed(2) + ' €';
+      document.getElementById('r-beneficio').textContent  = d.beneficio_mes.toFixed(2) + ' €';
+      document.getElementById('r-pendiente').textContent  = d.pendiente_cobro.toFixed(2) + ' €';
+      document.getElementById('r-morosos').textContent    = d.total_morosos;
+      document.getElementById('r-activos').textContent    = d.total_activos;
+      document.getElementById('r-finalizados').textContent = d.finalizados;
+    });
+}
+
+// ── Gráfica ingresos ───────────────────────────────────────────────────────
+function cargarIngresos(periodo) {
+  fetch('/stats/api/ingresos/' + periodo)
+    .then(r => r.json())
+    .then(d => {
+      const ctx = document.getElementById('chart-ingresos').getContext('2d');
+      if (chartIngresos) chartIngresos.destroy();
+      chartIngresos = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: d.labels,
+          datasets: [
+            {
+              label: 'Facturado (€)',
+              data: d.totales,
+              backgroundColor: 'rgba(13,110,253,0.55)',
+              borderColor: 'rgba(13,110,253,1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Beneficio (€)',
+              data: d.beneficios,
+              backgroundColor: 'rgba(25,135,84,0.55)',
+              borderColor: 'rgba(25,135,84,1)',
+              borderWidth: 1,
+              type: 'line',
+              fill: false,
+              tension: 0.3,
+              pointRadius: 3,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    });
+}
+
+// ── Gráfica aparatos ───────────────────────────────────────────────────────
+function cargarAparatos() {
+  fetch('/stats/api/aparatos')
+    .then(r => r.json())
+    .then(d => {
+      const ctx = document.getElementById('chart-aparatos').getContext('2d');
+      if (chartAparatos) chartAparatos.destroy();
+      chartAparatos = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: d.labels,
+          datasets: [{
+            label: 'Reparaciones',
+            data: d.values,
+            backgroundColor: 'rgba(108,117,125,0.6)',
+            borderColor: 'rgba(108,117,125,1)',
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+      });
+    });
+}
+
+// ── Gráfica técnicos (solo admin) ─────────────────────────────────────────
+{% if current_user.es_admin %}
+function cargarTecnicos() {
+  fetch('/stats/api/tecnicos')
+    .then(r => r.json())
+    .then(d => {
+      const ctx = document.getElementById('chart-tecnicos').getContext('2d');
+      if (chartTecnicos) chartTecnicos.destroy();
+      chartTecnicos = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: d.map(t => t.nombre),
+          datasets: [
+            {
+              label: 'Facturado (€)',
+              data: d.map(t => t.facturado),
+              backgroundColor: 'rgba(13,110,253,0.6)',
+            },
+            {
+              label: 'Finalizados',
+              data: d.map(t => t.finalizados),
+              backgroundColor: 'rgba(25,135,84,0.6)',
+              yAxisID: 'y1',
+            },
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y:  { beginAtZero: true, position: 'left',  title: { display: true, text: '€' } },
+            y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Avisos' }, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+    });
+}
+{% endif %}
+
+// ── Tabla morosos ──────────────────────────────────────────────────────────
+function cargarMorosos() {
+  fetch('/stats/api/morosos')
+    .then(r => r.json())
+    .then(lista => {
+      const badge = document.getElementById('badge-morosos');
+      badge.textContent = lista.length;
+
+      const contenedor = document.getElementById('tabla-morosos');
+      if (lista.length === 0) {
+        contenedor.innerHTML = '<div class="text-muted text-center py-3 small">Sin morosos 🎉</div>';
+        return;
+      }
+
+      let html = '<table class="table table-sm mb-0"><thead><tr>'
+        + '<th>#</th><th>Cliente</th><th>Aparato</th><th class="text-end">Importe</th>'
+        + '</tr></thead><tbody>';
+      for (const m of lista) {
+        html += `<tr>
+          <td><a href="/avisos/${m.id}" class="text-decoration-none">#${m.id}</a></td>
+          <td>
+            <div class="fw-semibold">${m.nombre}</div>
+            <a href="tel:${m.telefono}" class="small text-success">${m.telefono}</a>
+          </td>
+          <td class="small text-muted">${m.aparato}</td>
+          <td class="text-end fw-bold text-danger">${m.importe.toFixed(2)} €</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      contenedor.innerHTML = html;
+    });
+}
+
+// ── Botones de período ─────────────────────────────────────────────────────
+document.querySelectorAll('#periodo-btns button').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('#periodo-btns button').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    periodoActual = this.dataset.periodo;
+    cargarIngresos(periodoActual);
+  });
+});
+
+// ── Carga inicial ──────────────────────────────────────────────────────────
+cargarResumen();
+cargarIngresos('dia');
+cargarAparatos();
+cargarMorosos();
+{% if current_user.es_admin %}
+cargarTecnicos();
+{% endif %}
+</script>
+{% endblock %}

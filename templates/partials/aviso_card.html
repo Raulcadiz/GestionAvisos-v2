@@ -1,0 +1,48 @@
+{% set badge_class = aviso.estado_badge_class() %}
+<div class="card mb-2 shadow-sm aviso-card border-start border-4
+  {% if aviso.estado == 'hoy' %}border-danger
+  {% elif aviso.estado == 'esperando_material' %}border-info
+  {% elif aviso.estado == 'segunda_visita' %}border-primary
+  {% elif aviso.estado == 'finalizado' %}border-success
+  {% else %}border-warning{% endif %}">
+  <div class="card-body py-2">
+    <div class="d-flex justify-content-between align-items-start">
+      <div class="flex-grow-1">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="fw-bold">{{ aviso.nombre_cliente }}</span>
+          <span class="badge {{ badge_class }}">{{ aviso.estado_label() }}</span>
+          {% if aviso.cobro_estado == 'moroso' %}
+            <span class="badge bg-danger">⚠️ Moroso</span>
+          {% elif aviso.cobro_estado == 'pagado' %}
+            <span class="badge bg-success">✓ Pagado</span>
+          {% endif %}
+          {% if aviso.photos %}
+            <span class="badge bg-secondary">📷 {{ aviso.photos|length }}</span>
+          {% endif %}
+        </div>
+        <div class="small mt-1 d-flex align-items-center gap-2 flex-wrap">
+          <a href="tel:{{ aviso.telefono }}" class="btn btn-sm btn-outline-success py-0 px-2">📞 {{ aviso.telefono }}</a>
+          {% if aviso.calle %}
+            {% set maps_query = (aviso.calle + (', ' + aviso.localidad if aviso.localidad else '') + ', Cádiz') | urlencode %}
+            <a href="https://maps.google.com/?q={{ maps_query }}" target="_blank" rel="noopener"
+               class="fw-bold text-dark text-decoration-none" title="Abrir en Google Maps">
+              📍 <span class="border-bottom border-2 border-warning">{{ aviso.calle }}{% if aviso.localidad %}, {{ aviso.localidad }}{% endif %}</span> <small class="text-muted">↗</small>
+            </a>
+          {% endif %}
+        </div>
+        <div class="small mt-1">
+          {% if aviso.electrodomestico %}<span class="me-2">🔧 {{ aviso.electrodomestico }}{% if aviso.marca %} · {{ aviso.marca }}{% endif %}</span>{% endif %}
+          {% if aviso.fecha_cita %}<span class="text-primary">🗓️ Cita: {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}</span>{% endif %}
+        </div>
+        {% if aviso.descripcion %}
+          <div class="text-truncate small text-secondary mt-1" style="max-width:400px">{{ aviso.descripcion }}</div>
+        {% endif %}
+      </div>
+      <div class="d-flex flex-column align-items-end gap-1 ms-2">
+        <a href="{{ url_for('avisos.detail', id=aviso.id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
+        <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+        <small class="text-muted">#{{ aviso.id }}</small>
+      </div>
+    </div>
+  </div>
+</div>

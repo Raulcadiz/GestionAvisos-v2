@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Modo Ruta — {{ hoy.strftime('%d/%m/%Y') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">🚗 Modo Ruta <span class="badge bg-danger">{{ avisos|length }}</span></h2>
+  <a href="{{ url_for('dashboard.index') }}" class="btn btn-sm btn-outline-secondary">← Panel</a>
+</div>
+<div class="text-muted small mb-3">📅 {{ hoy.strftime('%A, %d de %B de %Y') }}</div>
+
+{% if not avisos %}
+  <div class="text-center py-5 text-muted">
+    <div style="font-size:3rem">✅</div>
+    <p class="mt-2">No hay citas para hoy</p>
+  </div>
+{% else %}
+  {% for aviso in avisos %}
+  <div class="card mb-3 shadow border-0 border-start border-4
+    {% if aviso.estado == 'finalizado' %}border-success opacity-50
+    {% elif aviso.estado == 'hoy' %}border-danger
+    {% else %}border-warning{% endif %}">
+    <div class="card-body">
+
+      <!-- Número y nombre -->
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <span class="badge bg-secondary me-1">#{{ loop.index }}</span>
+          <span class="fw-bold fs-5">{{ aviso.nombre_cliente }}</span>
+        </div>
+        <span class="badge {{ aviso.estado_badge_class() }}">{{ aviso.estado_label() }}</span>
+      </div>
+
+      <!-- Dirección grande y clicable -->
+      {% if aviso.calle %}
+        {% set maps_query = (aviso.calle + (', ' + aviso.localidad if aviso.localidad else '') + ', Cádiz') | urlencode %}
+        <a href="https://maps.google.com/?q={{ maps_query }}" target="_blank" rel="noopener"
+           class="btn btn-warning w-100 mb-2 text-start fw-bold">
+          📍 {{ aviso.calle }}{% if aviso.localidad %}, {{ aviso.localidad }}{% endif %}
+          <small class="float-end fw-normal">Abrir Maps ↗</small>
+        </a>
+      {% endif %}
+
+      <!-- Botón de llamada grande -->
+      <a href="tel:{{ aviso.telefono }}" class="btn btn-success w-100 mb-2 fw-bold fs-5">
+        📞 {{ aviso.telefono }}
+      </a>
+
+      <!-- Electrodoméstico y descripción -->
+      {% if aviso.electrodomestico or aviso.descripcion %}
+      <div class="small text-muted mb-2">
+        {% if aviso.electrodomestico %}🔧 {{ aviso.electrodomestico }}{% if aviso.marca %} · {{ aviso.marca }}{% endif %}{% endif %}
+        {% if aviso.descripcion %}<div class="mt-1">{{ aviso.descripcion }}</div>{% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Notas destacadas -->
+      {% if aviso.notas %}
+      <div class="alert alert-warning py-1 px-2 mb-2 small">
+        📝 {{ aviso.notas }}
+      </div>
+      {% endif %}
+
+      <!-- Botones acción -->
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('avisos.detail', id=aviso.id) }}" class="btn btn-sm btn-outline-primary flex-grow-1">Ver aviso</a>
+        <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-sm btn-outline-secondary flex-grow-1">Editar</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

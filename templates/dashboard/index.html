@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}Panel Principal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h4 mb-0">🏠 Panel de Control</h2>
+  <small class="text-muted">{{ hoy.strftime('%A, %d de %B de %Y') }}</small>
+</div>
+
+<!-- Tarjetas de contadores -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <a href="{{ url_for('dashboard.hoy') }}" class="text-decoration-none">
+      <div class="card border-0 shadow-sm h-100 counter-card border-start border-4 border-danger">
+        <div class="card-body text-center py-3">
+          <div class="display-6 fw-bold text-danger">{{ contadores.hoy }}</div>
+          <div class="small text-muted">📅 Hoy</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <a href="{{ url_for('dashboard.material') }}" class="text-decoration-none">
+      <div class="card border-0 shadow-sm h-100 counter-card border-start border-4 border-info">
+        <div class="card-body text-center py-3">
+          <div class="display-6 fw-bold text-info">{{ contadores.material }}</div>
+          <div class="small text-muted">📦 Material</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <a href="{{ url_for('avisos.list_all') }}?estado=pendiente" class="text-decoration-none">
+      <div class="card border-0 shadow-sm h-100 counter-card border-start border-4 border-warning">
+        <div class="card-body text-center py-3">
+          <div class="display-6 fw-bold text-warning">{{ contadores.pendientes }}</div>
+          <div class="small text-muted">⏳ Pendientes</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <a href="{{ url_for('dashboard.proximas') }}" class="text-decoration-none">
+      <div class="card border-0 shadow-sm h-100 counter-card border-start border-4 border-primary">
+        <div class="card-body text-center py-3">
+          <div class="display-6 fw-bold text-primary">{{ contadores.proximas }}</div>
+          <div class="small text-muted">🗓️ Próximas</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <a href="{{ url_for('avisos.list_all') }}?estado=segunda_visita" class="text-decoration-none">
+      <div class="card border-0 shadow-sm h-100 counter-card border-start border-4 border-primary">
+        <div class="card-body text-center py-3">
+          <div class="display-6 fw-bold text-primary">{{ contadores.segunda_visita }}</div>
+          <div class="small text-muted">🔁 2ª Visita</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <a href="{{ url_for('avisos.list_all') }}" class="text-decoration-none">
+      <div class="card border-0 shadow-sm h-100 counter-card border-start border-4 border-secondary">
+        <div class="card-body text-center py-3">
+          <div class="display-6 fw-bold text-secondary">{{ contadores.total }}</div>
+          <div class="small text-muted">📂 Activos</div>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Avisos de hoy -->
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-danger text-white fw-semibold d-flex justify-content-between align-items-center">
+        <span>📅 Citas de hoy ({{ avisos_hoy|length }})</span>
+        <a href="{{ url_for('dashboard.modo_ruta') }}" class="btn btn-sm btn-light text-danger fw-bold">🚗 Modo Ruta</a>
+      </div>
+      <div class="card-body p-2">
+        {% if avisos_hoy %}
+          {% for aviso in avisos_hoy %}
+            {% include 'partials/aviso_card.html' %}
+          {% endfor %}
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No hay citas para hoy</p>
+        {% endif %}
+        <a href="{{ url_for('dashboard.hoy') }}" class="btn btn-outline-danger btn-sm w-100 mt-1">
+          Ver todos →
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pendientes recientes -->
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-warning text-dark fw-semibold">
+        ⏳ Pendientes recientes
+      </div>
+      <div class="card-body p-2">
+        {% if avisos_pendientes %}
+          {% for aviso in avisos_pendientes %}
+            {% include 'partials/aviso_card.html' %}
+          {% endfor %}
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No hay avisos pendientes</p>
+        {% endif %}
+        <a href="{{ url_for('avisos.list_all') }}?estado=pendiente" class="btn btn-outline-warning btn-sm w-100 mt-1">
+          Ver todos →
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

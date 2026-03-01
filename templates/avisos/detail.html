@@ -1,0 +1,274 @@
+{% extends 'base.html' %}
+{% block title %}Aviso #{{ aviso.id }} — {{ aviso.nombre_cliente }}{% endblock %}
+
+{% block content %}
+<!-- Cabecera -->
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h2 class="h4 mb-0">
+      {{ aviso.nombre_cliente }}
+      <span class="badge {{ aviso.estado_badge_class() }} fs-6" id="estado-badge">{{ aviso.estado_label() }}</span>
+    </h2>
+    <small class="text-muted">Aviso #{{ aviso.id }} · Creado el {{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-primary">✏️ Editar</a>
+    <a href="{{ url_for('exports.albaran_pdf', id=aviso.id) }}" class="btn btn-outline-success" target="_blank">📄 Albarán</a>
+    <form method="POST" action="{{ url_for('avisos.duplicar', id=aviso.id) }}" class="d-inline">
+      <button type="submit" class="btn btn-outline-primary" title="Duplicar como segunda visita">🔁 2ª Visita</button>
+    </form>
+    <form method="POST" action="{{ url_for('avisos.eliminar', id=aviso.id) }}" class="d-inline"
+          onsubmit="return confirm('¿Eliminar este aviso? Esta acción no se puede deshacer.')">
+      <button type="submit" class="btn btn-outline-danger">🗑 Eliminar</button>
+    </form>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary">← Panel</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Datos principales -->
+  <div class="col-12 col-lg-8">
+
+    <!-- Cliente -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold bg-primary text-white">👤 Cliente</div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-12 col-md-6">
+            <div class="text-muted small">Nombre</div>
+            <div class="fw-semibold">{{ aviso.nombre_cliente }}</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="text-muted small">Teléfono</div>
+            <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
+              <a href="tel:{{ aviso.telefono }}" class="btn btn-success">📞 {{ aviso.telefono }}</a>
+              <a href="{{ url_for('avisos.customer_history', telefono=aviso.telefono) }}"
+                 class="btn btn-sm btn-outline-secondary">Historial</a>
+            </div>
+          </div>
+          {% if aviso.calle %}
+          <div class="col-12 col-md-8">
+            <div class="text-muted small">Dirección</div>
+            {% set maps_query = (aviso.calle + (', ' + aviso.localidad if aviso.localidad else '') + ', Cádiz') | urlencode %}
+            <div class="fw-bold fs-5">
+              <a href="https://maps.google.com/?q={{ maps_query }}" target="_blank" rel="noopener"
+                 class="text-dark text-decoration-none" title="Abrir en Google Maps">
+                📍 {{ aviso.calle }}{% if aviso.localidad %}, {{ aviso.localidad }}{% endif %}
+                <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">Maps ↗</span>
+              </a>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Electrodoméstico -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold bg-secondary text-white">🔧 Electrodoméstico</div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="text-muted small">Tipo</div>
+            <div class="fw-semibold">{{ aviso.electrodomestico or '—' }}</div>
+          </div>
+          <div class="col-6">
+            <div class="text-muted small">Marca</div>
+            <div class="fw-semibold">{{ aviso.marca or '—' }}</div>
+          </div>
+          {% if aviso.descripcion %}
+          <div class="col-12">
+            <div class="text-muted small">Descripción de la avería</div>
+            <div class="mt-1">{{ aviso.descripcion }}</div>
+          </div>
+          {% endif %}
+          {% if aviso.notas %}
+          <div class="col-12">
+            <div class="text-muted small">Notas internas</div>
+            <div class="mt-1 text-secondary">{{ aviso.notas }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Datos económicos -->
+    {% if aviso.tiene_datos_economicos %}
+    <div class="card shadow-sm border-0 mb-3 border-start border-4 border-success">
+      <div class="card-header fw-semibold bg-success text-white d-flex justify-content-between align-items-center">
+        <span>💶 Datos Económicos</span>
+        <span class="badge {{ aviso.cobro_badge_class() }}">{{ aviso.cobro_label() }}</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% if aviso.precio_mano_obra is not none %}
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Mano de obra</div>
+            <div class="fw-semibold fs-5">{{ '%.2f'|format(aviso.precio_mano_obra) }} €</div>
+          </div>
+          {% endif %}
+          {% if aviso.gastos_extra is not none %}
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Gastos extra</div>
+            <div class="fw-semibold fs-5">{{ '%.2f'|format(aviso.gastos_extra) }} €</div>
+            {% if aviso.gastos_extra_desc %}
+              <div class="small text-muted">{{ aviso.gastos_extra_desc }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if aviso.descuento is not none and aviso.descuento > 0 %}
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Descuento</div>
+            <div class="fw-semibold fs-5 text-warning">-{{ '%.2f'|format(aviso.descuento) }} €</div>
+          </div>
+          {% endif %}
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Total cliente</div>
+            <div class="fw-bold fs-5 text-primary">{{ '%.2f'|format(aviso.total_cliente) }} €</div>
+          </div>
+          {% if aviso.coste_materiales is not none %}
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Coste materiales</div>
+            <div class="fw-semibold">{{ '%.2f'|format(aviso.coste_materiales) }} €</div>
+          </div>
+          {% endif %}
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Beneficio neto</div>
+            <div class="fw-bold fs-5 {{ 'text-success' if aviso.beneficio >= 0 else 'text-danger' }}">
+              {{ '%.2f'|format(aviso.beneficio) }} €
+            </div>
+          </div>
+          {% if aviso.materiales_desc %}
+          <div class="col-12">
+            <div class="text-muted small">Materiales / piezas</div>
+            <div class="mt-1">{{ aviso.materiales_desc }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Fotos -->
+    {% if aviso.photos %}
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold">📷 Fotos ({{ aviso.photos|length }})</div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% for photo in aviso.photos %}
+            <div class="col-4 col-md-3 col-lg-2">
+              <a href="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}" target="_blank">
+                <img src="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}"
+                     class="img-thumbnail w-100"
+                     style="height:100px;object-fit:cover"
+                     alt="{{ photo.original_name }}">
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Panel lateral: Estado y fechas -->
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold bg-info text-dark">📅 Fechas y Estado</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="text-muted small">Fecha aviso</div>
+          <div class="fw-semibold">{{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small">Fecha cita</div>
+          <div class="fw-semibold">{{ aviso.fecha_cita.strftime('%d/%m/%Y') if aviso.fecha_cita else '— Sin cita' }}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small mb-1">Estado actual</div>
+          <span class="badge {{ aviso.estado_badge_class() }} fs-6 mb-2" id="estado-badge-panel">{{ aviso.estado_label() }}</span>
+        </div>
+        <!-- Cambio rápido de estado -->
+        <div>
+          <div class="text-muted small mb-1">Cambiar estado:</div>
+          <select class="form-select estado-select" data-aviso-id="{{ aviso.id }}">
+            {% for key, label in estados %}
+              <option value="{{ key }}" {% if aviso.estado == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <div id="estado-feedback" class="small mt-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold">👤 Técnico</div>
+      <div class="card-body small">
+        {% if aviso.tecnico %}
+          <div class="fw-semibold">{{ aviso.tecnico.display_name }}</div>
+          <div class="text-muted">@{{ aviso.tecnico.username }}</div>
+          {% if aviso.tecnico.telefono_perfil %}
+            <a href="tel:{{ aviso.tecnico.telefono_perfil }}" class="text-success">📞 {{ aviso.tecnico.telefono_perfil }}</a>
+          {% endif %}
+        {% else %}
+          <span class="text-muted">— Sin asignar</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-header fw-semibold">🕐 Historial</div>
+      <div class="card-body small text-muted">
+        <div>Creado: {{ aviso.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+        <div>Actualizado: {{ aviso.updated_at.strftime('%d/%m/%Y %H:%M') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cambio de estado AJAX
+const ESTADO_CLASSES = {
+  'pendiente': 'badge bg-warning text-dark fs-6',
+  'hoy': 'badge bg-danger fs-6',
+  'esperando_material': 'badge bg-info text-dark fs-6',
+  'segunda_visita': 'badge bg-primary fs-6',
+  'finalizado': 'badge bg-success fs-6',
+};
+
+document.querySelectorAll('.estado-select').forEach(sel => {
+  sel.addEventListener('change', function() {
+    const avisoId = this.dataset.avisoId;
+    const feedback = document.getElementById('estado-feedback');
+    feedback.textContent = 'Guardando...';
+    feedback.className = 'small mt-1 text-muted';
+
+    fetch(`/avisos/${avisoId}/estado`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({estado: this.value})
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        const cls = ESTADO_CLASSES[data.estado] || 'badge bg-secondary fs-6';
+        document.querySelectorAll('#estado-badge, #estado-badge-panel').forEach(b => {
+          b.className = cls;
+          b.textContent = data.estado_label;
+        });
+        feedback.textContent = '✓ Guardado';
+        feedback.className = 'small mt-1 text-success';
+        setTimeout(() => { feedback.textContent = ''; }, 2000);
+      }
+    })
+    .catch(() => {
+      feedback.textContent = 'Error al guardar';
+      feedback.className = 'small mt-1 text-danger';
+    });
+  });
+});
+</script>
+{% endblock %}
