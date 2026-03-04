@@ -5,26 +5,49 @@
 <!-- Cabecera -->
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
   <div>
-    <h2 class="h4 mb-0">
+    <h2 class="h4 mb-1">
       {{ aviso.tipo_servicio_icon() }}
       {{ aviso.nombre_cliente }}
-      <span class="badge {{ aviso.estado_badge_class() }} fs-6" id="estado-badge">{{ aviso.estado_label() }}</span>
     </h2>
-    <small class="text-muted">
-      Aviso #{{ aviso.id }} · {{ aviso.tipo_servicio_label() }} ·
-      {{ aviso.origen_icon() }} {{ aviso.origen_label() }} ·
-      {{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}
-    </small>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="badge {{ aviso.estado_badge_class() }} fs-6 px-3 py-2" id="estado-badge">
+        {{ aviso.estado_label() }}
+      </span>
+      <span class="badge bg-secondary px-2">{{ aviso.tipo_servicio_label() }}</span>
+      <span class="badge bg-light text-dark border px-2">{{ aviso.origen_icon() }} {{ aviso.origen_label() }}</span>
+      <span class="text-muted small">Aviso #{{ aviso.id }} · {{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}</span>
+    </div>
+    <!-- Admin y técnico destacados -->
+    <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+      {% if aviso.admin_asignado %}
+      <span class="badge bg-primary px-2 py-1" title="Administrador responsable">
+        🔑 {{ aviso.admin_asignado.display_name }}
+      </span>
+      {% else %}
+      <span class="badge bg-light text-muted border px-2 py-1">🔑 Sin admin asignado</span>
+      {% endif %}
+      {% if aviso.tecnico %}
+      <span class="badge {{ aviso.tecnico.rol_badge_class }} px-2 py-1" title="Técnico asignado">
+        {{ '📦' if aviso.tecnico.rol == 'repartidor' else '🔧' }} {{ aviso.tecnico.display_name }}
+      </span>
+      {% else %}
+      <span class="badge bg-light text-muted border px-2 py-1">🔧 Sin asignar</span>
+      {% endif %}
+    </div>
   </div>
   <div class="d-flex gap-2 flex-wrap">
+    {% if puede_editar %}
     <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-primary btn-sm">✏️ Editar</a>
+    {% endif %}
     {% if puede_ver_economico %}
     <a href="{{ url_for('exports.albaran_pdf', id=aviso.id) }}" class="btn btn-outline-success btn-sm" target="_blank">📄 Albarán</a>
     {% endif %}
+    {% if current_user.es_admin_o_superior %}
     <form method="POST" action="{{ url_for('avisos.duplicar', id=aviso.id) }}" class="d-inline">
       <button type="submit" class="btn btn-outline-primary btn-sm" title="Segunda visita">🔁 2ª Visita</button>
     </form>
-    {% if current_user.es_admin %}
+    {% endif %}
+    {% if current_user.es_admin and puede_editar %}
     <form method="POST" action="{{ url_for('avisos.eliminar', id=aviso.id) }}" class="d-inline"
           onsubmit="return confirm('¿Eliminar este aviso? No se puede deshacer.')">
       <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Eliminar</button>
@@ -85,22 +108,22 @@
         <div class="row g-2">
           <div class="col-6">
             <div class="text-muted small">Tipo</div>
-            <div class="fw-semibold">{{ aviso.electrodomestico or '—' }}</div>
+            <div class="fw-semibold fs-5">{{ aviso.electrodomestico or '—' }}</div>
           </div>
           <div class="col-6">
             <div class="text-muted small">Marca</div>
-            <div class="fw-semibold">{{ aviso.marca or '—' }}</div>
+            <div class="fw-semibold fs-5">{{ aviso.marca or '—' }}</div>
           </div>
           {% if aviso.descripcion %}
           <div class="col-12">
-            <div class="text-muted small">Descripción</div>
+            <div class="text-muted small">Descripción / Avería</div>
             <div class="mt-1">{{ aviso.descripcion }}</div>
           </div>
           {% endif %}
           {% if aviso.notas %}
           <div class="col-12">
             <div class="text-muted small">Notas internas</div>
-            <div class="mt-1 text-secondary fst-italic">{{ aviso.notas }}</div>
+            <div class="mt-1 p-2 bg-light rounded text-secondary fst-italic">{{ aviso.notas }}</div>
           </div>
           {% endif %}
         </div>
@@ -112,7 +135,7 @@
     <div class="card shadow-sm border-0 mb-3 border-start border-4 border-success">
       <div class="card-header fw-semibold bg-success text-white d-flex justify-content-between align-items-center">
         <span>💶 Datos Económicos</span>
-        <span class="badge {{ aviso.cobro_badge_class() }}">{{ aviso.cobro_label() }}</span>
+        <span class="badge {{ aviso.cobro_badge_class() }} fs-6">{{ aviso.cobro_label() }}</span>
       </div>
       <div class="card-body">
         <div class="row g-3">
@@ -139,7 +162,7 @@
           {% endif %}
           <div class="col-6 col-md-3">
             <div class="text-muted small">Total cliente</div>
-            <div class="fw-bold fs-4 text-primary">{{ '%.2f'|format(aviso.total_cliente) }} €</div>
+            <div class="fw-bold fs-3 text-primary">{{ '%.2f'|format(aviso.total_cliente) }} €</div>
           </div>
           {% if aviso.coste_materiales is not none %}
           <div class="col-6 col-md-3">
@@ -149,7 +172,7 @@
           {% endif %}
           <div class="col-6 col-md-3">
             <div class="text-muted small">Beneficio neto</div>
-            <div class="fw-bold fs-5 {{ 'text-success' if aviso.beneficio >= 0 else 'text-danger' }}">
+            <div class="fw-bold fs-4 {{ 'text-success' if aviso.beneficio >= 0 else 'text-danger' }}">
               {{ '%.2f'|format(aviso.beneficio) }} €
             </div>
           </div>
@@ -189,8 +212,9 @@
 
   <!-- Panel lateral -->
   <div class="col-12 col-lg-4">
-    <!-- Estado y fechas -->
-    <div class="card shadow-sm border-0 mb-3">
+
+    <!-- Estado — tarjeta destacada -->
+    <div class="card shadow-sm border-0 mb-3 border-start border-5 {{ aviso.estado_badge_class().replace('text-dark','').replace('text-white','').replace('bg-','border-') }}">
       <div class="card-header fw-semibold bg-info text-dark">📅 Fechas y Estado</div>
       <div class="card-body">
         <div class="mb-3">
@@ -199,11 +223,17 @@
         </div>
         <div class="mb-3">
           <div class="text-muted small">Fecha cita</div>
-          <div class="fw-semibold">{{ aviso.fecha_cita.strftime('%d/%m/%Y') if aviso.fecha_cita else '— Sin cita' }}</div>
+          {% if aviso.fecha_cita %}
+          <div class="fw-semibold text-primary">🗓️ {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}</div>
+          {% else %}
+          <div class="text-muted fst-italic small">— Sin cita programada</div>
+          {% endif %}
         </div>
         <div class="mb-3">
           <div class="text-muted small mb-1">Estado actual</div>
-          <span class="badge {{ aviso.estado_badge_class() }} fs-6 mb-2" id="estado-badge-panel">{{ aviso.estado_label() }}</span>
+          <span class="badge {{ aviso.estado_badge_class() }} fs-5 px-3 py-2" id="estado-badge-panel">
+            {{ aviso.estado_label() }}
+          </span>
         </div>
         <div>
           <div class="text-muted small mb-1">Cambiar estado:</div>
@@ -217,32 +247,62 @@
       </div>
     </div>
 
-    <!-- Técnico / Repartidor -->
+    <!-- Técnico / Repartidor — tarjeta destacada -->
     <div class="card shadow-sm border-0 mb-3">
-      <div class="card-header fw-semibold">
-        {{ '📦 Repartidor' if aviso.tecnico and aviso.tecnico.rol == 'repartidor' else '🔧 Técnico' }}
+      <div class="card-header fw-bold text-white
+        {% if aviso.tecnico and aviso.tecnico.rol == 'repartidor' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+        {{ '📦 Repartidor asignado' if aviso.tecnico and aviso.tecnico.rol == 'repartidor' else '🔧 Técnico asignado' }}
       </div>
-      <div class="card-body small">
+      <div class="card-body">
         {% if aviso.tecnico %}
-          <div class="fw-semibold">{{ aviso.tecnico.display_name }}</div>
-          <div class="text-muted"><span class="badge {{ aviso.tecnico.rol_badge_class }}">{{ aviso.tecnico.rol_label }}</span></div>
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                 style="width:42px;height:42px;font-size:1.1rem;background:{% if aviso.tecnico.rol == 'repartidor' %}#e0a800{% else %}#198754{% endif %}">
+              {{ aviso.tecnico.display_name[:1].upper() }}
+            </div>
+            <div>
+              <div class="fw-bold fs-5">{{ aviso.tecnico.display_name }}</div>
+              <span class="badge {{ aviso.tecnico.rol_badge_class }}">{{ aviso.tecnico.rol_label }}</span>
+            </div>
+          </div>
           {% if aviso.tecnico.telefono_perfil %}
-            <a href="tel:{{ aviso.tecnico.telefono_perfil }}" class="text-success mt-1 d-block">
+            <a href="tel:{{ aviso.tecnico.telefono_perfil }}" class="btn btn-success btn-sm w-100 mt-1">
               📞 {{ aviso.tecnico.telefono_perfil }}
             </a>
           {% endif %}
         {% else %}
-          <span class="text-muted">— Sin asignar</span>
+          <div class="text-center py-2 text-muted">
+            <div style="font-size:2rem">👤</div>
+            <div class="small">Sin asignar</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Admin responsable -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold bg-primary text-white">🔑 Admin responsable</div>
+      <div class="card-body small">
+        {% if aviso.admin_asignado %}
+          <div class="fw-semibold fs-6">{{ aviso.admin_asignado.display_name }}</div>
+          <span class="badge {{ aviso.admin_asignado.rol_badge_class }}">{{ aviso.admin_asignado.rol_label }}</span>
+        {% else %}
+          <span class="text-muted fst-italic">— Sin admin asignado</span>
         {% endif %}
       </div>
     </div>
 
     <!-- Historial -->
     <div class="card shadow-sm border-0">
-      <div class="card-header fw-semibold">🕐 Historial</div>
+      <div class="card-header fw-semibold">🕐 Auditoría</div>
       <div class="card-body small text-muted">
         <div>Creado: {{ aviso.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
         <div>Actualizado: {{ aviso.updated_at.strftime('%d/%m/%Y %H:%M') }}</div>
+        {% if not puede_editar and not current_user.es_super_admin %}
+        <div class="mt-2 p-2 bg-warning bg-opacity-10 rounded border border-warning">
+          <small class="text-warning fw-semibold">⚠️ Solo lectura — pertenece a otro administrador</small>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -252,6 +312,13 @@
 {% block scripts %}
 <script>
 const ESTADO_CLASSES = {
+  'pendiente': 'badge bg-warning text-dark fs-5 px-3 py-2',
+  'hoy': 'badge bg-danger fs-5 px-3 py-2',
+  'esperando_material': 'badge bg-info text-dark fs-5 px-3 py-2',
+  'segunda_visita': 'badge bg-primary fs-5 px-3 py-2',
+  'finalizado': 'badge bg-success fs-5 px-3 py-2',
+};
+const ESTADO_HEADER_CLASSES = {
   'pendiente': 'badge bg-warning text-dark fs-6',
   'hoy': 'badge bg-danger fs-6',
   'esperando_material': 'badge bg-info text-dark fs-6',
@@ -274,11 +341,12 @@ document.querySelectorAll('.estado-select').forEach(sel => {
     .then(r => r.json())
     .then(data => {
       if (data.ok) {
-        const cls = ESTADO_CLASSES[data.estado] || 'badge bg-secondary fs-6';
-        document.querySelectorAll('#estado-badge, #estado-badge-panel').forEach(b => {
-          b.className = cls;
-          b.textContent = data.estado_label;
-        });
+        const clsHeader = ESTADO_HEADER_CLASSES[data.estado] || 'badge bg-secondary fs-6';
+        const clsPanel  = ESTADO_CLASSES[data.estado] || 'badge bg-secondary fs-5 px-3 py-2';
+        document.getElementById('estado-badge').className = clsHeader;
+        document.getElementById('estado-badge').textContent = data.estado_label;
+        document.getElementById('estado-badge-panel').className = clsPanel;
+        document.getElementById('estado-badge-panel').textContent = data.estado_label;
         feedback.textContent = '✓ Guardado';
         feedback.className = 'small mt-1 text-success';
         setTimeout(() => { feedback.textContent = ''; }, 2000);

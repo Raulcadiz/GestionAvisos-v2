@@ -7,34 +7,55 @@
 
   <div class="d-flex flex-wrap gap-2 align-items-center">
     {% if current_user.es_admin %}
-    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:150px">
-      <option value="">— Todos —</option>
+    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:165px">
+      <option value="">👥 Todos los técnicos</option>
       {% for t in tecnicos %}
-      <option value="{{ t.id }}">{{ t.display_name or t.username }}</option>
+      <option value="{{ t.id }}">{{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name or t.username }}</option>
       {% endfor %}
     </select>
     {% endif %}
 
-    <select id="filtro-tipo" class="form-select form-select-sm" style="min-width:140px">
+    <select id="filtro-tipo" class="form-select form-select-sm" style="min-width:145px">
       <option value="">🔍 Todo tipo</option>
       <option value="reparacion">🔧 Reparación</option>
       <option value="instalacion">⚡ Instalación</option>
       <option value="reparto">📦 Reparto</option>
     </select>
+
+    <div class="btn-group btn-group-sm" role="group" id="vista-btns">
+      <button class="btn btn-outline-secondary active" data-view="dayGridMonth">Mes</button>
+      <button class="btn btn-outline-secondary" data-view="timeGridWeek">Semana</button>
+      <button class="btn btn-outline-secondary" data-view="listWeek">Lista</button>
+    </div>
   </div>
 </div>
 
-<!-- Leyenda de estados -->
-<div class="d-flex flex-wrap gap-2 mb-3">
-  <span class="badge rounded-pill px-3 py-2" style="background:#ffc107;color:#000">Pendiente</span>
-  <span class="badge rounded-pill px-3 py-2 bg-danger">Hoy</span>
-  <span class="badge rounded-pill px-3 py-2" style="background:#0dcaf0;color:#000">Esp. material</span>
-  <span class="badge rounded-pill px-3 py-2 bg-primary">2ª visita</span>
-  <span class="badge rounded-pill px-3 py-2" style="background:#adb5bd;color:#000">Finalizado</span>
-  <span class="ms-2 text-muted small align-self-center">🔧 Rep · ⚡ Inst · 📦 Rep</span>
+<!-- Leyenda estados -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <span class="small text-muted fw-semibold me-1">Estado:</span>
+  <span class="badge rounded-pill px-3 py-2" style="background:#ffc107;color:#000">⏳ Pendiente</span>
+  <span class="badge rounded-pill px-3 py-2 bg-danger">🔴 Hoy</span>
+  <span class="badge rounded-pill px-3 py-2" style="background:#0dcaf0;color:#000">📦 Esp. material</span>
+  <span class="badge rounded-pill px-3 py-2 bg-primary">🔁 2ª visita</span>
+  <span class="badge rounded-pill px-3 py-2" style="background:#adb5bd;color:#000">✅ Finalizado</span>
 </div>
 
-<div class="card shadow-sm border-0 eb-cal-card">
+<!-- Leyenda técnicos (solo admin con técnicos) -->
+{% if current_user.es_admin and tecnicos %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center" id="leyenda-tecnicos">
+  <span class="small text-muted fw-semibold me-1">Técnicos:</span>
+  {% set colores = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'] %}
+  {% for t in tecnicos %}
+  <span class="badge rounded-pill px-2 py-1"
+        style="background:{{ colores[loop.index0 % colores|length] }};color:#fff;font-size:0.75rem"
+        data-tecnico-id="{{ t.id }}">
+    {{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name }}
+  </span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card shadow border-0 eb-cal-card">
   <div class="card-body p-2 p-md-3">
     <div id="calendario"></div>
   </div>
@@ -42,18 +63,18 @@
 
 <!-- Modal detalle rápido -->
 <div class="modal fade" id="modalEvento" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header py-2" id="modalHeader">
-        <div>
-          <h5 class="modal-title fw-bold mb-0" id="modalTitulo"></h5>
-          <small id="modalNombreCliente" class="opacity-75"></small>
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header py-2 px-3" id="modalHeader">
+        <div class="flex-grow-1">
+          <h6 class="modal-title fw-bold mb-0" id="modalTitulo"></h6>
+          <small id="modalNombreCliente" class="opacity-80"></small>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body py-2" id="modalCuerpo"></div>
-      <div class="modal-footer py-2">
-        <a id="modalEnlace" href="#" class="btn btn-primary btn-sm">Ver aviso completo →</a>
+      <div class="modal-body py-2 px-3" id="modalCuerpo"></div>
+      <div class="modal-footer py-2 px-3 gap-2">
+        <a id="modalEnlace" href="#" class="btn btn-primary btn-sm flex-grow-1">Ver aviso →</a>
         <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
@@ -66,10 +87,19 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-  const calEl = document.getElementById('calendario');
-  const modal = new bootstrap.Modal(document.getElementById('modalEvento'));
+  const calEl         = document.getElementById('calendario');
+  const modal         = new bootstrap.Modal(document.getElementById('modalEvento'));
   const filtroTecnico = document.getElementById('filtro-tecnico');
   const filtroTipo    = document.getElementById('filtro-tipo');
+
+  // Mapa de colores por técnico (coincide con la leyenda Jinja)
+  const COLORES_TECNICOS = [
+    '#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'
+  ];
+  const mapaColorTecnico = {};
+  document.querySelectorAll('#leyenda-tecnicos [data-tecnico-id]').forEach((el, i) => {
+    mapaColorTecnico[el.dataset.tecnicoId] = COLORES_TECNICOS[i % COLORES_TECNICOS.length];
+  });
 
   function buildUrl(info) {
     const tid  = filtroTecnico ? filtroTecnico.value : '';
@@ -86,18 +116,14 @@ document.addEventListener('DOMContentLoaded', function () {
     height: 'auto',
     firstDay: 1,
     eventDisplay: 'block',
+    nowIndicator: true,
 
     headerToolbar: {
       left:   'prev,next today',
       center: 'title',
-      right:  'dayGridMonth,timeGridWeek,listWeek',
+      right:  false,
     },
-    buttonText: {
-      today: 'Hoy',
-      month: 'Mes',
-      week:  'Semana',
-      list:  'Lista',
-    },
+    buttonText: { today: 'Hoy' },
 
     events: function (fetchInfo, success, failure) {
       fetch(buildUrl(fetchInfo))
@@ -106,12 +132,24 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => failure(err));
     },
 
+    // Contenido del evento: icono servicio + calle + técnico
+    eventContent: function(arg) {
+      const props = arg.event.extendedProps;
+      const tecnico = props.tecnico || '';
+      return {
+        html: `<div class="fc-event-inner" style="padding:1px 3px;overflow:hidden">
+          <div class="fw-semibold text-truncate" style="font-size:0.78rem">${arg.event.title}</div>
+          ${tecnico ? `<div style="font-size:0.68rem;opacity:0.9">👤 ${tecnico}</div>` : ''}
+        </div>`
+      };
+    },
+
     eventClick: function (info) {
       info.jsEvent.preventDefault();
       const ev    = info.event;
       const props = ev.extendedProps;
       const fecha = ev.start.toLocaleDateString('es-ES', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+        weekday: 'long', day: 'numeric', month: 'long'
       });
 
       // Header con color del estado
@@ -121,7 +159,6 @@ document.addEventListener('DOMContentLoaded', function () {
       document.querySelector('#modalHeader .btn-close').style.filter =
         (ev.textColor === '#ffffff') ? 'invert(1)' : '';
 
-      // Título = calle, subtítulo = nombre cliente
       document.getElementById('modalTitulo').textContent = props.calle || props.nombre_cliente || ev.title;
       const subtitulo = document.getElementById('modalNombreCliente');
       if (props.calle && props.nombre_cliente) {
@@ -131,18 +168,20 @@ document.addEventListener('DOMContentLoaded', function () {
         subtitulo.style.display = 'none';
       }
 
-      let html = `<table class="table table-sm mb-0">
-        <tr><th class="text-muted pe-3" style="width:38%">📅 Fecha</th><td>${fecha}</td></tr>
-        <tr><th class="text-muted">${props.tipo_icon} Servicio</th><td>${props.tipo_servicio}</td></tr>
-        <tr><th class="text-muted">📋 Estado</th><td><span class="badge bg-secondary">${props.estado}</span></td></tr>`;
+      let estadoBadge = `<span class="badge bg-secondary">${props.estado}</span>`;
+
+      let html = `<table class="table table-sm mb-0 small">
+        <tr><th class="text-muted pe-2" style="width:36%">📅 Fecha</th><td class="fw-semibold">${fecha}</td></tr>
+        <tr><th class="text-muted">${props.tipo_icon} Tipo</th><td>${props.tipo_servicio}</td></tr>
+        <tr><th class="text-muted">📋 Estado</th><td>${estadoBadge}</td></tr>`;
       if (props.localidad)
         html += `<tr><th class="text-muted">🏙️ Localidad</th><td>${props.localidad}</td></tr>`;
       if (props.electrodomestico)
         html += `<tr><th class="text-muted">🔧 Aparato</th><td>${props.electrodomestico}${props.marca ? ' · ' + props.marca : ''}</td></tr>`;
       if (props.telefono)
-        html += `<tr><th class="text-muted">📞 Teléfono</th><td><a href="tel:${props.telefono}" class="text-decoration-none">${props.telefono}</a></td></tr>`;
+        html += `<tr><th class="text-muted">📞 Tlf</th><td><a href="tel:${props.telefono}" class="fw-semibold text-success text-decoration-none">${props.telefono}</a></td></tr>`;
       if (props.tecnico)
-        html += `<tr><th class="text-muted">👤 Asignado</th><td>${props.tecnico}</td></tr>`;
+        html += `<tr><th class="text-muted">👤 Técnico</th><td class="fw-semibold">${props.tecnico}</td></tr>`;
       if (props.origen && props.origen !== 'Particular')
         html += `<tr><th class="text-muted">🏪 Origen</th><td>${props.origen}</td></tr>`;
       html += `</table>`;
@@ -152,61 +191,87 @@ document.addEventListener('DOMContentLoaded', function () {
       modal.show();
     },
 
-    dayMaxEvents: 4,
+    dayMaxEvents: 5,
 
     dayCellDidMount: function (info) {
       const hoy = new Date();
       if (info.date.toDateString() === hoy.toDateString()) {
-        info.el.style.background = '#e8f4fd';
+        info.el.style.background = 'linear-gradient(135deg,#e8f4fd 0%,#dbeafe 100%)';
       }
-    },
-
-    // Mostrar calle en la vista lista
-    eventContent: function(arg) {
-      return { html: `<div class="fc-event-main-frame">
-        <div class="fc-event-title-container">
-          <div class="fc-event-title fc-sticky">${arg.event.title}</div>
-        </div>
-      </div>` };
     },
   });
 
   cal.render();
 
-  if (filtroTecnico) {
-    filtroTecnico.addEventListener('change', () => cal.refetchEvents());
-  }
-  if (filtroTipo) {
-    filtroTipo.addEventListener('change', () => cal.refetchEvents());
-  }
+  // Botones de vista
+  document.querySelectorAll('#vista-btns button').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#vista-btns button').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      cal.changeView(this.dataset.view);
+    });
+  });
+
+  if (filtroTecnico) filtroTecnico.addEventListener('change', () => cal.refetchEvents());
+  if (filtroTipo)    filtroTipo.addEventListener('change',    () => cal.refetchEvents());
 });
 </script>
 
 <style>
 #calendario .fc-toolbar-title {
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 800;
   text-transform: capitalize;
+  letter-spacing: -0.3px;
 }
 #calendario .fc-event {
   cursor: pointer;
-  font-size: 0.78rem;
-  padding: 2px 5px;
-  border-radius: 4px;
+  border-radius: 5px;
+  border: none !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  transition: box-shadow .15s;
+}
+#calendario .fc-event:hover {
+  box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+  transform: translateY(-1px);
 }
 #calendario .fc-daygrid-day-number {
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 #calendario .fc-col-header-cell {
-  background: #f0f4f8;
-  font-weight: 600;
+  background: linear-gradient(135deg, #0077b6, #00b4d8);
+  font-weight: 700;
   text-transform: capitalize;
+  color: #fff !important;
+  padding: 6px 0;
+}
+#calendario .fc-col-header-cell a {
+  color: #fff !important;
 }
 #calendario .fc-day-today {
-  background: #e8f4fd !important;
+  background: linear-gradient(135deg,#e8f4fd,#dbeafe) !important;
+}
+#calendario .fc-button {
+  border-radius: 6px !important;
+  font-weight: 600;
+}
+#calendario .fc-button-primary {
+  background: #0077b6 !important;
+  border-color: #005f93 !important;
+}
+#calendario .fc-button-primary:hover {
+  background: #005f93 !important;
+}
+#calendario .fc-list-event:hover td {
+  background: #f0f8ff;
 }
 .eb-cal-card {
-  border-radius: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+}
+#modalHeader {
+  transition: background .2s;
 }
 @media (max-width: 576px) {
   #calendario .fc-toolbar {
@@ -217,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
     display: flex;
     justify-content: center;
   }
+  #vista-btns { display: none; }
 }
 </style>
 {% endblock %}

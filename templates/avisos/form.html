@@ -171,14 +171,15 @@
     </div>
 
     <!-- Asignación (solo admin) -->
-    {% if current_user.es_admin and tecnicos %}
+    {% if current_user.es_admin_o_superior %}
     <div class="col-12">
       <div class="card shadow-sm border-0">
         <div class="card-header fw-semibold bg-dark text-white">👤 Asignación</div>
         <div class="card-body">
           <div class="row g-3">
+            {% if tecnicos %}
             <div class="col-12 col-md-6">
-              <label class="form-label">Técnico / Repartidor asignado</label>
+              <label class="form-label fw-semibold">🔧 Técnico / Repartidor asignado</label>
               <select name="asignado_a" class="form-select form-select-lg">
                 <option value="">— Sin asignar —</option>
                 {% for t in tecnicos %}
@@ -189,6 +190,22 @@
                 {% endfor %}
               </select>
             </div>
+            {% endif %}
+            {% if current_user.es_super_admin and admins %}
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">🔑 Admin responsable</label>
+              <select name="admin_asignado_id" class="form-select form-select-lg">
+                <option value="">— Sin asignar —</option>
+                {% for a in admins %}
+                  <option value="{{ a.id }}"
+                    {% if aviso and aviso.admin_asignado_id == a.id %}selected{% endif %}>
+                    {{ a.display_name }} ({{ a.rol_label }})
+                  </option>
+                {% endfor %}
+              </select>
+              <div class="form-text text-info">Solo visible para super admin. Asigna responsabilidad del aviso.</div>
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>

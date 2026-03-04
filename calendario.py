@@ -95,6 +95,7 @@ def api_eventos():
         titulo = f'{icono} {calle_titulo}'
 
         tecnico_nombre = a.tecnico.display_name if a.tecnico else ''
+        tecnico_id     = a.asignado_a or 0
 
         eventos.append({
             'id':              a.id,
@@ -112,6 +113,7 @@ def api_eventos():
                 'electrodomestico': a.electrodomestico or '',
                 'marca':            a.marca or '',
                 'tecnico':          tecnico_nombre,
+                'tecnico_id':       tecnico_id,
                 'localidad':        a.localidad or '',
                 'tipo_servicio':    a.tipo_servicio_label(),
                 'tipo_icon':        icono,

@@ -238,7 +238,14 @@ def api_tecnicos():
         activos     = Aviso.query.filter_by(asignado_a=t.id).filter(Aviso.estado != 'finalizado').count()
         finalizados = Aviso.query.filter_by(asignado_a=t.id, estado='finalizado').count()
         morosos     = Aviso.query.filter_by(asignado_a=t.id, cobro_estado='moroso').count()
+        pagados     = Aviso.query.filter_by(asignado_a=t.id, cobro_estado='pagado').count()
         facturado   = db.session.query(func.sum(expr_total)).filter(
+            Aviso.asignado_a == t.id,
+            Aviso.estado == 'finalizado'
+        ).scalar() or 0.0
+        beneficio   = db.session.query(func.sum(
+            expr_total - func.coalesce(Aviso.coste_materiales, 0)
+        )).filter(
             Aviso.asignado_a == t.id,
             Aviso.estado == 'finalizado'
         ).scalar() or 0.0
@@ -249,7 +256,9 @@ def api_tecnicos():
             'activos':     activos,
             'finalizados': finalizados,
             'morosos':     morosos,
+            'pagados':     pagados,
             'facturado':   round(facturado, 2),
+            'beneficio':   round(beneficio, 2),
         })
 
     resultado.sort(key=lambda x: x['facturado'], reverse=True)

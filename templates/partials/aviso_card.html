@@ -1,4 +1,5 @@
 {% set badge_class = aviso.estado_badge_class() %}
+{% set puede_editar_aviso = aviso.puede_editar(current_user) %}
 <div class="card mb-2 shadow-sm aviso-card border-start border-4
   {% if aviso.estado == 'hoy' %}border-danger
   {% elif aviso.estado == 'esperando_material' %}border-info
@@ -34,13 +35,26 @@
           {% if aviso.electrodomestico %}<span class="me-2">🔧 {{ aviso.electrodomestico }}{% if aviso.marca %} · {{ aviso.marca }}{% endif %}</span>{% endif %}
           {% if aviso.fecha_cita %}<span class="text-primary">🗓️ Cita: {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}</span>{% endif %}
         </div>
+        <!-- Técnico y admin asignado -->
+        <div class="small mt-1 d-flex flex-wrap gap-1">
+          {% if aviso.tecnico %}
+            <span class="badge {{ aviso.tecnico.rol_badge_class }} opacity-90">
+              {{ '📦' if aviso.tecnico.rol == 'repartidor' else '🔧' }} {{ aviso.tecnico.display_name }}
+            </span>
+          {% endif %}
+          {% if aviso.admin_asignado and current_user.es_admin_o_superior %}
+            <span class="badge bg-primary opacity-75">🔑 {{ aviso.admin_asignado.display_name }}</span>
+          {% endif %}
+        </div>
         {% if aviso.descripcion %}
           <div class="text-truncate small text-secondary mt-1" style="max-width:400px">{{ aviso.descripcion }}</div>
         {% endif %}
       </div>
       <div class="d-flex flex-column align-items-end gap-1 ms-2">
         <a href="{{ url_for('avisos.detail', id=aviso.id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
+        {% if puede_editar_aviso %}
         <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+        {% endif %}
         <small class="text-muted">#{{ aviso.id }}</small>
       </div>
     </div>

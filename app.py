@@ -97,6 +97,7 @@ def _migrar_columnas():
             ('asignado_a',        'INTEGER',      None),
             ('tipo_servicio',     'VARCHAR(20)',  "'reparacion'"),
             ('origen',            'VARCHAR(30)',  "'particular'"),
+            ('admin_asignado_id', 'INTEGER',      None),
         ]
         for col, tipo, default in nuevas_aviso:
             if col not in aviso_cols:
@@ -112,7 +113,7 @@ def _seed_default_users():
     from models import User
     from werkzeug.security import generate_password_hash
     if User.query.count() == 0:
-        admin = User(username='admin', password=generate_password_hash('admin123'),
+        admin = User(username='adminRaul', password=generate_password_hash('admin1234'),
                      rol='super_admin', nombre_completo='Administrador Principal')
         db.session.add(admin)
         db.session.flush()

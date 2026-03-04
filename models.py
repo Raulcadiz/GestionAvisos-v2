@@ -106,19 +106,14 @@ class User(db.Model, UserMixin):
 
     def puede_ver_economico(self, aviso):
         """
-        Determina si este usuario puede ver los datos económicos de un aviso.
         - super_admin: siempre
-        - admin: si el aviso fue creado por él, o si el técnico asignado fue creado por él
+        - admin: solo si es el admin asignado del aviso (o no tiene admin asignado = legacy)
         - técnico/repartidor: nunca
         """
         if self.rol == 'super_admin':
             return True
         if self.rol == 'admin':
-            # Aviso creado por este admin
-            if aviso.created_by == self.id:
-                return True
-            # Técnico asignado pertenece al equipo de este admin
-            if aviso.tecnico and aviso.tecnico.creado_por_id == self.id:
+            if aviso.admin_asignado_id is None or aviso.admin_asignado_id == self.id:
                 return True
         return False
 
@@ -161,16 +156,33 @@ class Aviso(db.Model):
     cobro_estado      = db.Column(db.String(20), default='pendiente')
 
     # Auditoría y asignación
-    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at  = db.Column(db.DateTime, default=datetime.utcnow)
-    created_by  = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
-    asignado_a  = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
+    created_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by        = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
+    asignado_a        = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
+    admin_asignado_id = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
 
     # Relaciones
-    photos   = db.relationship('Photo', backref='aviso', lazy=True,
-                               cascade='all, delete-orphan')
-    tecnico  = db.relationship('User', foreign_keys=[asignado_a],
-                               backref=db.backref('avisos_asignados', lazy=True))
+    photos          = db.relationship('Photo', backref='aviso', lazy=True,
+                                      cascade='all, delete-orphan')
+    tecnico         = db.relationship('User', foreign_keys=[asignado_a],
+                                      backref=db.backref('avisos_asignados', lazy=True))
+    admin_asignado  = db.relationship('User', foreign_keys=[admin_asignado_id],
+                                      backref=db.backref('avisos_administrados', lazy=True))
+
+    # ── Permisos ────────────────────────────────────────────────────
+
+    def puede_editar(self, user):
+        """
+        - super_admin: siempre
+        - admin: si es el admin asignado o no hay admin asignado (avisos legacy)
+        - tecnico/repartidor: solo si está asignado al aviso
+        """
+        if user.es_super_admin:
+            return True
+        if user.es_admin:
+            return self.admin_asignado_id is None or self.admin_asignado_id == user.id
+        return self.asignado_a == user.id
 
     # ── Tipo de servicio ────────────────────────────────────────────
 

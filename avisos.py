@@ -59,12 +59,23 @@ def uploaded_file(filename):
 # ── Lista y búsqueda ───────────────────────────────────────────────────────
 
 def _get_tecnicos_asignables():
-    """Devuelve la lista de usuarios que el admin actual puede asignar."""
+    """Devuelve la lista de técnicos/repartidores que el admin actual puede asignar."""
     if current_user.es_super_admin:
-        return User.query.filter_by(is_active=True).order_by(User.nombre_completo).all()
+        return User.query.filter(
+            User.is_active == True,
+            User.rol.in_(['tecnico', 'repartidor'])
+        ).order_by(User.nombre_completo).all()
     elif current_user.es_admin:
         return User.query.filter_by(is_active=True, creado_por_id=current_user.id).order_by(User.nombre_completo).all()
     return []
+
+
+def _get_admins():
+    """Devuelve la lista de admins (para super_admin al asignar admin a un aviso)."""
+    return User.query.filter(
+        User.is_active == True,
+        User.rol.in_(['admin', 'super_admin'])
+    ).order_by(User.nombre_completo).all()
 
 
 @avisos_bp.route('/')
@@ -153,7 +164,8 @@ def detail(id):
     return render_template('avisos/detail.html',
                            aviso=aviso,
                            estados=ESTADOS,
-                           puede_ver_economico=current_user.puede_ver_economico(aviso))
+                           puede_ver_economico=current_user.puede_ver_economico(aviso),
+                           puede_editar=aviso.puede_editar(current_user))
 
 
 # ── Crear ──────────────────────────────────────────────────────────────────
@@ -161,12 +173,24 @@ def detail(id):
 @avisos_bp.route('/nuevo', methods=['GET', 'POST'])
 @login_required
 def create():
+    # Técnicos y repartidores no pueden crear avisos
+    if current_user.es_trabajador:
+        flash('No tienes permiso para crear avisos. Contacta con tu administrador.', 'warning')
+        return redirect(url_for('dashboard.index'))
+
     if request.method == 'POST':
         def _float_or_none(val):
             try:
                 return float(val) if val.strip() else None
             except (ValueError, AttributeError):
                 return None
+
+        # Determinar admin_asignado_id
+        if current_user.es_super_admin:
+            admin_raw = request.form.get('admin_asignado_id', '')
+            admin_asignado_id = int(admin_raw) if admin_raw.isdigit() else None
+        else:
+            admin_asignado_id = current_user.id
 
         aviso = Aviso(
             nombre_cliente=request.form.get('nombre_cliente', '').strip(),
@@ -181,6 +205,7 @@ def create():
             tipo_servicio=request.form.get('tipo_servicio', 'reparacion'),
             origen=request.form.get('origen', 'particular'),
             created_by=current_user.id,
+            admin_asignado_id=admin_asignado_id,
             precio_mano_obra=_float_or_none(request.form.get('precio_mano_obra', '')),
             coste_materiales=_float_or_none(request.form.get('coste_materiales', '')),
             materiales_desc=request.form.get('materiales_desc', '').strip() or None,
@@ -209,7 +234,8 @@ def create():
                                    electrodomesticos=ELECTRODOMESTICOS,
                                    tipos_servicio=TIPOS_SERVICIO,
                                    origenes=ORIGENES,
-                                   tecnicos=_get_tecnicos_asignables())
+                                   tecnicos=_get_tecnicos_asignables(),
+                                   admins=_get_admins())
 
         db.session.add(aviso)
         db.session.flush()  # Para obtener el ID antes de guardar fotos
@@ -239,7 +265,8 @@ def create():
                            electrodomesticos=ELECTRODOMESTICOS,
                            tipos_servicio=TIPOS_SERVICIO,
                            origenes=ORIGENES,
-                           tecnicos=_get_tecnicos_asignables())
+                           tecnicos=_get_tecnicos_asignables(),
+                           admins=_get_admins())
 
 
 # ── Editar ─────────────────────────────────────────────────────────────────
@@ -249,11 +276,20 @@ def create():
 def edit(id):
     aviso = Aviso.query.get_or_404(id)
 
+    # Verificar permisos de edición
+    if not aviso.puede_editar(current_user):
+        flash('No tienes permiso para editar este aviso.', 'danger')
+        return redirect(url_for('avisos.detail', id=id))
+
     if request.method == 'POST':
-        aviso.nombre_cliente = request.form.get('nombre_cliente', '').strip()
-        aviso.telefono = request.form.get('telefono', '').strip()
-        aviso.calle = request.form.get('calle', '').strip()
-        aviso.localidad = request.form.get('localidad', '').strip()
+        # Solo admins con permiso pueden cambiar datos principales del cliente/aparato
+        if current_user.es_admin_o_superior:
+            aviso.nombre_cliente = request.form.get('nombre_cliente', '').strip()
+            aviso.telefono = request.form.get('telefono', '').strip()
+            aviso.calle = request.form.get('calle', '').strip()
+            aviso.localidad = request.form.get('localidad', '').strip()
+            aviso.tipo_servicio = request.form.get('tipo_servicio', aviso.tipo_servicio or 'reparacion')
+            aviso.origen = request.form.get('origen', aviso.origen or 'particular')
         aviso.electrodomestico = request.form.get('electrodomestico', '').strip()
         aviso.marca = request.form.get('marca', '').strip()
         aviso.descripcion = request.form.get('descripcion', '').strip()
@@ -266,17 +302,21 @@ def edit(id):
             except (ValueError, AttributeError):
                 return None
 
-        aviso.tipo_servicio     = request.form.get('tipo_servicio', aviso.tipo_servicio or 'reparacion')
-        aviso.origen            = request.form.get('origen', aviso.origen or 'particular')
-        aviso.precio_mano_obra  = _float_or_none(request.form.get('precio_mano_obra', ''))
-        aviso.coste_materiales  = _float_or_none(request.form.get('coste_materiales', ''))
-        aviso.materiales_desc   = request.form.get('materiales_desc', '').strip() or None
-        aviso.descuento         = _float_or_none(request.form.get('descuento', ''))
-        aviso.gastos_extra      = _float_or_none(request.form.get('gastos_extra', ''))
-        aviso.gastos_extra_desc = request.form.get('gastos_extra_desc', '').strip() or None
-        aviso.cobro_estado      = request.form.get('cobro_estado', aviso.cobro_estado)
-        asignado_raw = request.form.get('asignado_a', '')
-        aviso.asignado_a = int(asignado_raw) if asignado_raw.isdigit() else None
+        if current_user.es_admin_o_superior:
+            aviso.precio_mano_obra  = _float_or_none(request.form.get('precio_mano_obra', ''))
+            aviso.coste_materiales  = _float_or_none(request.form.get('coste_materiales', ''))
+            aviso.materiales_desc   = request.form.get('materiales_desc', '').strip() or None
+            aviso.descuento         = _float_or_none(request.form.get('descuento', ''))
+            aviso.gastos_extra      = _float_or_none(request.form.get('gastos_extra', ''))
+            aviso.gastos_extra_desc = request.form.get('gastos_extra_desc', '').strip() or None
+            aviso.cobro_estado      = request.form.get('cobro_estado', aviso.cobro_estado)
+            asignado_raw = request.form.get('asignado_a', '')
+            aviso.asignado_a = int(asignado_raw) if asignado_raw.isdigit() else None
+
+        # Solo super_admin puede reasignar el admin del aviso
+        if current_user.es_super_admin:
+            admin_raw = request.form.get('admin_asignado_id', '')
+            aviso.admin_asignado_id = int(admin_raw) if admin_raw.isdigit() else None
 
         fecha_aviso_str = request.form.get('fecha_aviso', '')
         fecha_cita_str = request.form.get('fecha_cita', '')
@@ -289,7 +329,7 @@ def edit(id):
         elif request.form.get('limpiar_cita'):
             aviso.fecha_cita = None
 
-        if not aviso.nombre_cliente or not aviso.telefono:
+        if current_user.es_admin_o_superior and (not aviso.nombre_cliente or not aviso.telefono):
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')
             return render_template('avisos/form.html',
                                    aviso=aviso,
@@ -298,9 +338,10 @@ def edit(id):
                                    electrodomesticos=ELECTRODOMESTICOS,
                                    tipos_servicio=TIPOS_SERVICIO,
                                    origenes=ORIGENES,
-                                   tecnicos=_get_tecnicos_asignables())
+                                   tecnicos=_get_tecnicos_asignables(),
+                                   admins=_get_admins())
 
-        # Nuevas fotos
+        # Fotos
         files = request.files.getlist('photos')
         for f in files:
             if f and f.filename and allowed_file(f.filename):
@@ -324,7 +365,8 @@ def edit(id):
                            electrodomesticos=ELECTRODOMESTICOS,
                            tipos_servicio=TIPOS_SERVICIO,
                            origenes=ORIGENES,
-                           tecnicos=_get_tecnicos_asignables())
+                           tecnicos=_get_tecnicos_asignables(),
+                           admins=_get_admins())
 
 
 # ── Cambiar estado (AJAX) ──────────────────────────────────────────────────
@@ -363,11 +405,15 @@ def duplicar(id):
         electrodomestico=original.electrodomestico,
         marca=original.marca,
         descripcion=original.descripcion,
+        tipo_servicio=original.tipo_servicio,
+        origen=original.origen,
         estado='segunda_visita',
         fecha_aviso=date.today(),
         fecha_cita=None,
         notas=f'Segunda visita. Aviso original: #{original.id}',
         created_by=current_user.id,
+        admin_asignado_id=original.admin_asignado_id,
+        asignado_a=original.asignado_a,
     )
     db.session.add(nuevo)
     db.session.commit()
@@ -381,7 +427,9 @@ def duplicar(id):
 @login_required
 def eliminar(id):
     aviso = Aviso.query.get_or_404(id)
-    # Eliminar fotos del disco
+    if not current_user.es_admin or not aviso.puede_editar(current_user):
+        flash('No tienes permiso para eliminar este aviso.', 'danger')
+        return redirect(url_for('avisos.detail', id=id))
     for photo in aviso.photos:
         delete_photo_file(photo.filename)
     db.session.delete(aviso)
