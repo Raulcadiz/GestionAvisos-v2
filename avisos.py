@@ -9,7 +9,7 @@ from flask_login import login_required, current_user
 from PIL import Image
 
 from extensions import db
-from models import Aviso, Photo, ESTADOS, ELECTRODOMESTICOS, COBRO_ESTADOS, User
+from models import Aviso, Photo, ESTADOS, ELECTRODOMESTICOS, COBRO_ESTADOS, TIPOS_SERVICIO, ORIGENES, User
 from telegram_bot import notificar_aviso_nuevo, notificar_cambio_estado
 
 avisos_bp = Blueprint('avisos', __name__, url_prefix='/avisos')
@@ -58,15 +58,25 @@ def uploaded_file(filename):
 
 # ── Lista y búsqueda ───────────────────────────────────────────────────────
 
+def _get_tecnicos_asignables():
+    """Devuelve la lista de usuarios que el admin actual puede asignar."""
+    if current_user.es_super_admin:
+        return User.query.filter_by(is_active=True).order_by(User.nombre_completo).all()
+    elif current_user.es_admin:
+        return User.query.filter_by(is_active=True, creado_por_id=current_user.id).order_by(User.nombre_completo).all()
+    return []
+
+
 @avisos_bp.route('/')
 @login_required
 def list_all():
     q = request.args.get('q', '').strip()
     estado_filter = request.args.get('estado', '')
+    tipo_filter = request.args.get('tipo', '')
     page = request.args.get('page', 1, type=int)
 
     query = Aviso.query
-    # Técnicos solo ven sus avisos
+    # Trabajadores solo ven sus avisos
     if not current_user.es_admin:
         query = query.filter(
             db.or_(Aviso.asignado_a == current_user.id,
@@ -85,6 +95,8 @@ def list_all():
 
     if estado_filter:
         query = query.filter_by(estado=estado_filter)
+    if tipo_filter:
+        query = query.filter_by(tipo_servicio=tipo_filter)
 
     avisos = query.order_by(Aviso.fecha_aviso.desc()).paginate(
         page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
@@ -94,7 +106,9 @@ def list_all():
                            avisos=avisos,
                            q=q,
                            estado_filter=estado_filter,
+                           tipo_filter=tipo_filter,
                            estados=ESTADOS,
+                           tipos_servicio=TIPOS_SERVICIO,
                            cobro_estados=COBRO_ESTADOS)
 
 
@@ -138,7 +152,8 @@ def detail(id):
     aviso = Aviso.query.get_or_404(id)
     return render_template('avisos/detail.html',
                            aviso=aviso,
-                           estados=ESTADOS)
+                           estados=ESTADOS,
+                           puede_ver_economico=current_user.puede_ver_economico(aviso))
 
 
 # ── Crear ──────────────────────────────────────────────────────────────────
@@ -163,6 +178,8 @@ def create():
             descripcion=request.form.get('descripcion', '').strip(),
             notas=request.form.get('notas', '').strip(),
             estado=request.form.get('estado', 'pendiente'),
+            tipo_servicio=request.form.get('tipo_servicio', 'reparacion'),
+            origen=request.form.get('origen', 'particular'),
             created_by=current_user.id,
             precio_mano_obra=_float_or_none(request.form.get('precio_mano_obra', '')),
             coste_materiales=_float_or_none(request.form.get('coste_materiales', '')),
@@ -185,13 +202,14 @@ def create():
 
         if not aviso.nombre_cliente or not aviso.telefono:
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')
-            tecnicos = User.query.filter_by(is_active=True).all()
             return render_template('avisos/form.html',
                                    aviso=None,
                                    estados=ESTADOS,
                                    cobro_estados=COBRO_ESTADOS,
                                    electrodomesticos=ELECTRODOMESTICOS,
-                                   tecnicos=tecnicos)
+                                   tipos_servicio=TIPOS_SERVICIO,
+                                   origenes=ORIGENES,
+                                   tecnicos=_get_tecnicos_asignables())
 
         db.session.add(aviso)
         db.session.flush()  # Para obtener el ID antes de guardar fotos
@@ -214,13 +232,14 @@ def create():
         flash(f'Aviso #{aviso.id} creado correctamente.', 'success')
         return redirect(url_for('avisos.detail', id=aviso.id))
 
-    tecnicos = User.query.filter_by(is_active=True).all()
     return render_template('avisos/form.html',
                            aviso=None,
                            estados=ESTADOS,
                            cobro_estados=COBRO_ESTADOS,
                            electrodomesticos=ELECTRODOMESTICOS,
-                           tecnicos=tecnicos)
+                           tipos_servicio=TIPOS_SERVICIO,
+                           origenes=ORIGENES,
+                           tecnicos=_get_tecnicos_asignables())
 
 
 # ── Editar ─────────────────────────────────────────────────────────────────
@@ -247,6 +266,8 @@ def edit(id):
             except (ValueError, AttributeError):
                 return None
 
+        aviso.tipo_servicio     = request.form.get('tipo_servicio', aviso.tipo_servicio or 'reparacion')
+        aviso.origen            = request.form.get('origen', aviso.origen or 'particular')
         aviso.precio_mano_obra  = _float_or_none(request.form.get('precio_mano_obra', ''))
         aviso.coste_materiales  = _float_or_none(request.form.get('coste_materiales', ''))
         aviso.materiales_desc   = request.form.get('materiales_desc', '').strip() or None
@@ -270,13 +291,14 @@ def edit(id):
 
         if not aviso.nombre_cliente or not aviso.telefono:
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')
-            tecnicos = User.query.filter_by(is_active=True).all()
             return render_template('avisos/form.html',
                                    aviso=aviso,
                                    estados=ESTADOS,
                                    cobro_estados=COBRO_ESTADOS,
                                    electrodomesticos=ELECTRODOMESTICOS,
-                                   tecnicos=tecnicos)
+                                   tipos_servicio=TIPOS_SERVICIO,
+                                   origenes=ORIGENES,
+                                   tecnicos=_get_tecnicos_asignables())
 
         # Nuevas fotos
         files = request.files.getlist('photos')
@@ -295,13 +317,14 @@ def edit(id):
         flash('Aviso actualizado correctamente.', 'success')
         return redirect(url_for('avisos.detail', id=aviso.id))
 
-    tecnicos = User.query.filter_by(is_active=True).all()
     return render_template('avisos/form.html',
                            aviso=aviso,
                            estados=ESTADOS,
                            cobro_estados=COBRO_ESTADOS,
                            electrodomesticos=ELECTRODOMESTICOS,
-                           tecnicos=tecnicos)
+                           tipos_servicio=TIPOS_SERVICIO,
+                           origenes=ORIGENES,
+                           tecnicos=_get_tecnicos_asignables())
 
 
 # ── Cambiar estado (AJAX) ──────────────────────────────────────────────────

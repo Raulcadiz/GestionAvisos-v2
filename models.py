@@ -4,32 +4,19 @@ from sqlalchemy import event
 from extensions import db
 
 
-class User(db.Model, UserMixin):
-    __tablename__ = 'user'
+TIPOS_SERVICIO = [
+    ('reparacion',  'Reparación',  '🔧'),
+    ('instalacion', 'Instalación', '⚡'),
+    ('reparto',     'Reparto',     '📦'),
+]
 
-    id               = db.Column(db.Integer, primary_key=True)
-    username         = db.Column(db.String(80), unique=True, nullable=False)
-    password         = db.Column(db.String(256), nullable=False)
-    is_active        = db.Column(db.Boolean, default=True)
-    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Perfil
-    rol              = db.Column(db.String(20), default='tecnico')  # 'admin' | 'tecnico'
-    nombre_completo  = db.Column(db.String(150))
-    telefono_perfil  = db.Column(db.String(20))
-    telegram_chat_id = db.Column(db.String(50))
-
-    avisos = db.relationship('Aviso', backref='creado_por', lazy=True,
-                             foreign_keys='Aviso.created_by')
-
-    @property
-    def es_admin(self):
-        return self.rol == 'admin'
-
-    @property
-    def display_name(self):
-        return self.nombre_completo or self.username
-
+ORIGENES = [
+    ('particular',     'Particular',      '👤'),
+    ('electrofactory', 'ElectroFactory',  '🏪'),
+    ('milar',          'Milar',           '🏬'),
+    ('inmobiliaria',   'Inmobiliaria',    '🏠'),
+    ('otro',           'Otro',            '📋'),
+]
 
 ESTADOS = [
     ('pendiente',          'Pendiente'),
@@ -53,6 +40,89 @@ ELECTRODOMESTICOS = [
 ]
 
 
+class User(db.Model, UserMixin):
+    __tablename__ = 'user'
+
+    id               = db.Column(db.Integer, primary_key=True)
+    username         = db.Column(db.String(80), unique=True, nullable=False)
+    password         = db.Column(db.String(256), nullable=False)
+    is_active        = db.Column(db.Boolean, default=True)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Perfil
+    # rol: 'super_admin' | 'admin' | 'tecnico' | 'repartidor'
+    rol              = db.Column(db.String(20), default='tecnico')
+    nombre_completo  = db.Column(db.String(150))
+    telefono_perfil  = db.Column(db.String(20))
+    telegram_chat_id = db.Column(db.String(50))
+
+    # Jerarquía: admin que creó este usuario
+    creado_por_id    = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    avisos = db.relationship('Aviso', backref='creado_por', lazy=True,
+                             foreign_keys='Aviso.created_by')
+
+    # ── Propiedades de rol ──────────────────────────────────────────
+
+    @property
+    def es_super_admin(self):
+        return self.rol == 'super_admin'
+
+    @property
+    def es_admin(self):
+        """True para admin Y super_admin (compatibilidad con código existente)."""
+        return self.rol in ('admin', 'super_admin')
+
+    @property
+    def es_admin_o_superior(self):
+        return self.rol in ('admin', 'super_admin')
+
+    @property
+    def es_trabajador(self):
+        """True para técnicos y repartidores."""
+        return self.rol in ('tecnico', 'repartidor')
+
+    @property
+    def rol_label(self):
+        return {
+            'super_admin': 'Super Admin',
+            'admin':       'Administrador',
+            'tecnico':     'Técnico',
+            'repartidor':  'Repartidor',
+        }.get(self.rol, self.rol)
+
+    @property
+    def rol_badge_class(self):
+        return {
+            'super_admin': 'bg-danger',
+            'admin':       'bg-primary',
+            'tecnico':     'bg-success',
+            'repartidor':  'bg-warning text-dark',
+        }.get(self.rol, 'bg-secondary')
+
+    @property
+    def display_name(self):
+        return self.nombre_completo or self.username
+
+    def puede_ver_economico(self, aviso):
+        """
+        Determina si este usuario puede ver los datos económicos de un aviso.
+        - super_admin: siempre
+        - admin: si el aviso fue creado por él, o si el técnico asignado fue creado por él
+        - técnico/repartidor: nunca
+        """
+        if self.rol == 'super_admin':
+            return True
+        if self.rol == 'admin':
+            # Aviso creado por este admin
+            if aviso.created_by == self.id:
+                return True
+            # Técnico asignado pertenece al equipo de este admin
+            if aviso.tecnico and aviso.tecnico.creado_por_id == self.id:
+                return True
+        return False
+
+
 class Aviso(db.Model):
     __tablename__ = 'aviso'
 
@@ -70,6 +140,10 @@ class Aviso(db.Model):
     descripcion      = db.Column(db.Text)
     notas            = db.Column(db.Text)
 
+    # Tipo de servicio y origen
+    tipo_servicio = db.Column(db.String(20), default='reparacion')  # reparacion|instalacion|reparto
+    origen        = db.Column(db.String(30), default='particular')  # particular|electrofactory|milar|inmobiliaria|otro
+
     # Fechas
     fecha_aviso = db.Column(db.Date, nullable=False, default=date.today)
     fecha_cita  = db.Column(db.Date, nullable=True)
@@ -78,13 +152,13 @@ class Aviso(db.Model):
     estado = db.Column(db.String(30), nullable=False, default='pendiente', index=True)
 
     # Económico
-    precio_mano_obra  = db.Column(db.Float, nullable=True)     # € mano de obra
-    coste_materiales  = db.Column(db.Float, nullable=True)     # € coste piezas (interno)
-    materiales_desc   = db.Column(db.Text,  nullable=True)     # descripción piezas
-    descuento         = db.Column(db.Float, nullable=True)     # € descuento al cliente
-    gastos_extra      = db.Column(db.Float, nullable=True)     # desplazamiento, urgencia…
+    precio_mano_obra  = db.Column(db.Float, nullable=True)
+    coste_materiales  = db.Column(db.Float, nullable=True)
+    materiales_desc   = db.Column(db.Text,  nullable=True)
+    descuento         = db.Column(db.Float, nullable=True)
+    gastos_extra      = db.Column(db.Float, nullable=True)
     gastos_extra_desc = db.Column(db.String(200), nullable=True)
-    cobro_estado      = db.Column(db.String(20), default='pendiente')  # pagado|pendiente|moroso
+    cobro_estado      = db.Column(db.String(20), default='pendiente')
 
     # Auditoría y asignación
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
@@ -97,6 +171,32 @@ class Aviso(db.Model):
                                cascade='all, delete-orphan')
     tecnico  = db.relationship('User', foreign_keys=[asignado_a],
                                backref=db.backref('avisos_asignados', lazy=True))
+
+    # ── Tipo de servicio ────────────────────────────────────────────
+
+    def tipo_servicio_label(self):
+        for key, label, _ in TIPOS_SERVICIO:
+            if key == self.tipo_servicio:
+                return label
+        return 'Reparación'
+
+    def tipo_servicio_icon(self):
+        for key, _, icon in TIPOS_SERVICIO:
+            if key == self.tipo_servicio:
+                return icon
+        return '🔧'
+
+    def origen_label(self):
+        for key, label, _ in ORIGENES:
+            if key == self.origen:
+                return label
+        return 'Particular'
+
+    def origen_icon(self):
+        for key, _, icon in ORIGENES:
+            if key == self.origen:
+                return icon
+        return '👤'
 
     # ── Métodos de estado ──────────────────────────────────────────
 
@@ -132,14 +232,12 @@ class Aviso(db.Model):
 
     @property
     def total_cliente(self):
-        """Total a cobrar al cliente = mano_obra + gastos_extra - descuento."""
         base = (self.precio_mano_obra or 0) + (self.gastos_extra or 0)
         desc = self.descuento or 0
         return round(max(base - desc, 0), 2)
 
     @property
     def beneficio(self):
-        """Beneficio neto = total_cliente - coste_materiales."""
         return round(self.total_cliente - (self.coste_materiales or 0), 2)
 
     @property

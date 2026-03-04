@@ -17,16 +17,28 @@ _COLORES = {
     'finalizado':         ('#adb5bd', '#868e96', '#000000'),
 }
 
+_ICONOS_SERVICIO = {
+    'reparacion':  '🔧',
+    'instalacion': '⚡',
+    'reparto':     '📦',
+}
+
 
 @calendario_bp.route('/')
 @login_required
 def index():
     tecnicos = []
     if current_user.es_admin:
-        tecnicos = (User.query
-                    .filter_by(is_active=True)
-                    .order_by(User.username)
-                    .all())
+        if current_user.es_super_admin:
+            tecnicos = (User.query
+                        .filter_by(is_active=True)
+                        .order_by(User.username)
+                        .all())
+        else:
+            tecnicos = (User.query
+                        .filter_by(is_active=True, creado_por_id=current_user.id)
+                        .order_by(User.username)
+                        .all())
     return render_template('calendario/index.html', tecnicos=tecnicos)
 
 
@@ -34,9 +46,10 @@ def index():
 @login_required
 def api_eventos():
     """Devuelve los avisos con fecha_cita en el rango pedido por FullCalendar."""
-    start_str = request.args.get('start', '')
-    end_str   = request.args.get('end', '')
-    tecnico_id = request.args.get('tecnico_id', type=int)
+    start_str   = request.args.get('start', '')
+    end_str     = request.args.get('end', '')
+    tecnico_id  = request.args.get('tecnico_id', type=int)
+    tipo_filter = request.args.get('tipo', '')
 
     try:
         start = datetime.fromisoformat(start_str[:10]).date()
@@ -51,13 +64,23 @@ def api_eventos():
     )
 
     if not current_user.es_admin:
-        # Técnico solo ve sus avisos
         q = q.filter(db.or_(
             Aviso.asignado_a == current_user.id,
             Aviso.created_by == current_user.id,
         ))
     elif tecnico_id:
         q = q.filter(Aviso.asignado_a == tecnico_id)
+    elif not current_user.es_super_admin:
+        # Admin regular: solo su equipo
+        equipo_ids = [u.id for u in User.query.filter_by(creado_por_id=current_user.id).all()]
+        equipo_ids.append(current_user.id)
+        q = q.filter(db.or_(
+            Aviso.asignado_a.in_(equipo_ids),
+            Aviso.created_by == current_user.id,
+        ))
+
+    if tipo_filter:
+        q = q.filter_by(tipo_servicio=tipo_filter)
 
     avisos = q.order_by(Aviso.fecha_cita).all()
 
@@ -67,9 +90,9 @@ def api_eventos():
             a.estado, ('#6c757d', '#565e64', '#ffffff')
         )
 
-        titulo = a.nombre_cliente
-        if a.electrodomestico:
-            titulo += f' · {a.electrodomestico}'
+        icono = _ICONOS_SERVICIO.get(a.tipo_servicio or 'reparacion', '🔧')
+        calle_titulo = a.calle or a.nombre_cliente or 'Sin dirección'
+        titulo = f'{icono} {calle_titulo}'
 
         tecnico_nombre = a.tecnico.display_name if a.tecnico else ''
 
@@ -82,12 +105,17 @@ def api_eventos():
             'borderColor':     border,
             'textColor':       text,
             'extendedProps': {
-                'estado':         a.estado_label(),
-                'telefono':       a.telefono,
+                'estado':           a.estado_label(),
+                'nombre_cliente':   a.nombre_cliente,
+                'calle':            a.calle or '',
+                'telefono':         a.telefono,
                 'electrodomestico': a.electrodomestico or '',
-                'tecnico':        tecnico_nombre,
-                'localidad':      a.localidad or '',
-                'marca':          a.marca or '',
+                'marca':            a.marca or '',
+                'tecnico':          tecnico_nombre,
+                'localidad':        a.localidad or '',
+                'tipo_servicio':    a.tipo_servicio_label(),
+                'tipo_icon':        icono,
+                'origen':           a.origen_label(),
             },
         })
 

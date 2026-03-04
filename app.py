@@ -64,14 +64,25 @@ def _migrar_columnas():
         user_cols = [c['name'] for c in inspector.get_columns('user')]
         if 'rol' not in user_cols:
             conn.execute(text("ALTER TABLE user ADD COLUMN rol VARCHAR(20) DEFAULT 'tecnico'"))
-            conn.execute(text("UPDATE user SET rol='admin' WHERE username='admin'"))
+            conn.execute(text("UPDATE user SET rol='super_admin' WHERE username='admin'"))
         for col, tipo in [
             ('nombre_completo', 'VARCHAR(150)'),
             ('telefono_perfil', 'VARCHAR(20)'),
             ('telegram_chat_id', 'VARCHAR(50)'),
+            ('creado_por_id', 'INTEGER'),
         ]:
             if col not in user_cols:
                 conn.execute(text(f"ALTER TABLE user ADD COLUMN {col} {tipo}"))
+
+        # Actualizar admin existente a super_admin si tiene rol 'admin'
+        conn.execute(text(
+            "UPDATE user SET rol='super_admin' WHERE username='admin' AND rol='admin'"
+        ))
+        # Asignar técnicos sin creador al super_admin
+        conn.execute(text(
+            "UPDATE user SET creado_por_id=(SELECT id FROM user WHERE rol='super_admin' LIMIT 1) "
+            "WHERE creado_por_id IS NULL AND rol IN ('tecnico','repartidor')"
+        ))
 
         # ── Aviso ──
         aviso_cols = [c['name'] for c in inspector.get_columns('aviso')]
@@ -84,6 +95,8 @@ def _migrar_columnas():
             ('gastos_extra_desc', 'VARCHAR(200)', None),
             ('cobro_estado',      'VARCHAR(20)',  "'pendiente'"),
             ('asignado_a',        'INTEGER',      None),
+            ('tipo_servicio',     'VARCHAR(20)',  "'reparacion'"),
+            ('origen',            'VARCHAR(30)',  "'particular'"),
         ]
         for col, tipo, default in nuevas_aviso:
             if col not in aviso_cols:
@@ -99,10 +112,15 @@ def _seed_default_users():
     from models import User
     from werkzeug.security import generate_password_hash
     if User.query.count() == 0:
+        admin = User(username='admin', password=generate_password_hash('admin123'),
+                     rol='super_admin', nombre_completo='Administrador Principal')
+        db.session.add(admin)
+        db.session.flush()
         usuarios = [
-            User(username='admin',    password=generate_password_hash('admin123'),    rol='admin'),
-            User(username='tecnico1', password=generate_password_hash('tecnico123'), rol='tecnico'),
-            User(username='tecnico2', password=generate_password_hash('tecnico123'), rol='tecnico'),
+            User(username='tecnico1', password=generate_password_hash('tecnico123'),
+                 rol='tecnico', creado_por_id=admin.id),
+            User(username='tecnico2', password=generate_password_hash('tecnico123'),
+                 rol='tecnico', creado_por_id=admin.id),
         ]
         db.session.add_all(usuarios)
         db.session.commit()

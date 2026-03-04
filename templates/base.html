@@ -3,26 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}CadizTecnico{% endblock %} — Gestión de Avisos</title>
+  <title>{% block title %}ElectroBahía{% endblock %} — Gestión de Servicios</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 </head>
 <body class="bg-light">
 
 {% if current_user.is_authenticated %}
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top shadow">
+<!-- Navbar principal -->
+<nav class="navbar navbar-expand-lg navbar-dark eb-navbar fixed-top shadow-sm">
   <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="{{ url_for('dashboard.index') }}">
-      🔧 CadizTecnico
+    <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('dashboard.index') }}">
+      <span class="eb-logo">⚡</span>
+      <span>ElectroBahía</span>
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navMenu">
       <ul class="navbar-nav me-auto">
-        <li class="nav-item">
+        <li class="nav-item d-lg-none">
           <a class="nav-link" href="{{ url_for('dashboard.index') }}">🏠 Panel</a>
+        </li>
+        <li class="nav-item d-lg-none">
+          <a class="nav-link" href="{{ url_for('avisos.create') }}">➕ Nuevo aviso</a>
         </li>
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('dashboard.hoy') }}">📅 Hoy</a>
@@ -43,33 +47,49 @@
           <a class="nav-link" href="{{ url_for('calendario.index') }}">📅 Calendario</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('estadisticas.index') }}">📊 Estadísticas</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('dashboard.telegram_ajustes') }}">📲 Telegram</a>
+          <a class="nav-link" href="{{ url_for('estadisticas.index') }}">📊 Stats</a>
         </li>
         {% if current_user.es_admin %}
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('admin.index') }}">👥 Admin</a>
+          <a class="nav-link" href="{{ url_for('admin.index') }}">👥 Equipo</a>
         </li>
         {% endif %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('dashboard.telegram_ajustes') }}">📲 Telegram</a>
+        </li>
       </ul>
-      <!-- Búsqueda rápida en navbar -->
-      <div class="d-flex me-2 position-relative" style="min-width:220px">
-        <input class="form-control form-control-sm" type="search" id="nav-search"
-               placeholder="Buscar por nombre, tel, calle..." autocomplete="off">
+      <!-- Búsqueda rápida escritorio -->
+      <div class="d-none d-lg-flex me-2 position-relative" style="min-width:240px">
+        <input class="form-control form-control-sm eb-search" type="search" id="nav-search"
+               placeholder="🔍 Nombre, tel, calle..." autocomplete="off">
         <div id="nav-search-results" class="search-dropdown shadow"></div>
       </div>
-      <a href="{{ url_for('avisos.create') }}" class="btn btn-success btn-sm me-2 fw-bold">
-        + Nuevo aviso
+      <a href="{{ url_for('avisos.create') }}" class="btn btn-success btn-sm me-2 fw-bold d-none d-lg-flex align-items-center gap-1">
+        ➕ Nuevo
       </a>
-      <span class="navbar-text text-white-50 small me-2">{{ current_user.username }}</span>
-      <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-light btn-sm">Salir</a>
+      <div class="d-flex align-items-center gap-2">
+        <span class="small text-white-50 d-none d-xl-inline">
+          <span class="badge {{ current_user.rol_badge_class }}">{{ current_user.rol_label }}</span>
+          {{ current_user.display_name }}
+        </span>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-light btn-sm">Salir</a>
+      </div>
     </div>
   </div>
 </nav>
 
-<div class="container-fluid mt-5 pt-3">
+<!-- Barra de búsqueda móvil -->
+<div class="d-lg-none eb-mobile-search">
+  <div class="px-3 py-2">
+    <div class="position-relative">
+      <input class="form-control" type="search" id="nav-search-mobile"
+             placeholder="🔍 Buscar cliente, calle o teléfono..." autocomplete="off">
+      <div id="nav-search-results-mobile" class="search-dropdown shadow"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid eb-content pb-mobile">
 {% endif %}
 
   <div class="{% if current_user.is_authenticated %}py-3{% endif %}">
@@ -80,14 +100,82 @@
 {% if current_user.is_authenticated %}
 </div>
 
-<!-- FAB: Nuevo aviso en móvil -->
-<a href="{{ url_for('avisos.create') }}"
-   class="btn btn-success btn-lg rounded-circle shadow fab-btn d-lg-none"
-   title="Nuevo aviso">+</a>
+<!-- Bottom Navigation Bar (solo móvil) -->
+<nav class="eb-bottom-nav d-lg-none">
+  <a href="{{ url_for('dashboard.index') }}" class="eb-bnav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+    <div class="eb-bnav-icon">🏠</div>
+    <div class="eb-bnav-label">Panel</div>
+  </a>
+  <a href="{{ url_for('calendario.index') }}" class="eb-bnav-item {% if request.endpoint == 'calendario.index' %}active{% endif %}">
+    <div class="eb-bnav-icon">📅</div>
+    <div class="eb-bnav-label">Citas</div>
+  </a>
+  <a href="{{ url_for('avisos.create') }}" class="eb-bnav-item eb-bnav-add">
+    <div class="eb-bnav-add-btn">➕</div>
+    <div class="eb-bnav-label">Nuevo</div>
+  </a>
+  <a href="{{ url_for('avisos.list_all') }}" class="eb-bnav-item {% if request.endpoint == 'avisos.list_all' %}active{% endif %}">
+    <div class="eb-bnav-icon">📂</div>
+    <div class="eb-bnav-label">Avisos</div>
+  </a>
+  {% if current_user.es_admin %}
+  <a href="{{ url_for('estadisticas.index') }}" class="eb-bnav-item {% if request.endpoint == 'estadisticas.index' %}active{% endif %}">
+    <div class="eb-bnav-icon">📊</div>
+    <div class="eb-bnav-label">Stats</div>
+  </a>
+  {% else %}
+  <a href="{{ url_for('dashboard.hoy') }}" class="eb-bnav-item {% if request.endpoint == 'dashboard.hoy' %}active{% endif %}">
+    <div class="eb-bnav-icon">📅</div>
+    <div class="eb-bnav-label">Hoy</div>
+  </a>
+  {% endif %}
+</nav>
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+function initSearch(inputId, resultsId) {
+  const inp = document.getElementById(inputId);
+  const res = document.getElementById(resultsId);
+  if (!inp || !res) return;
+  let timer;
+  inp.addEventListener('input', function() {
+    clearTimeout(timer);
+    const q = this.value.trim();
+    if (q.length < 2) { res.classList.remove('show'); res.innerHTML = ''; return; }
+    timer = setTimeout(() => {
+      fetch('/avisos/api/search?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+          if (!data.length) {
+            res.innerHTML = '<div class="search-empty">Sin resultados</div>';
+          } else {
+            res.innerHTML = data.map(a =>
+              `<a href="${a.url}" class="search-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="fw-semibold small">${a.nombre_cliente}</div>
+                    <div class="text-muted" style="font-size:0.78rem">${a.calle ? a.calle + ' · ' : ''}${a.telefono}</div>
+                  </div>
+                  <span class="badge ${a.estado_class} ms-2 flex-shrink-0" style="font-size:0.7rem">${a.estado}</span>
+                </div>
+              </a>`
+            ).join('');
+          }
+          res.classList.add('show');
+        });
+    }, 250);
+  });
+  document.addEventListener('click', e => {
+    if (!inp.contains(e.target) && !res.contains(e.target)) {
+      res.classList.remove('show');
+    }
+  });
+}
+initSearch('nav-search', 'nav-search-results');
+initSearch('nav-search-mobile', 'nav-search-results-mobile');
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

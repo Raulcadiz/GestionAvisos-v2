@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}{% if tecnico %}Editar Técnico{% else %}Nuevo Técnico{% endif %}{% endblock %}
+{% block title %}{% if tecnico %}Editar usuario{% else %}Nuevo usuario{% endif %}{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="h4 mb-0">
-    {% if tecnico %}✏️ Editar Técnico: {{ tecnico.display_name }}{% else %}👤 Nuevo Técnico{% endif %}
+    {% if tecnico %}✏️ Editar: {{ tecnico.display_name }}{% else %}👤 Nuevo usuario{% endif %}
   </h2>
   <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">← Volver</a>
 </div>
@@ -12,19 +12,49 @@
 <div class="row justify-content-center">
   <div class="col-12 col-md-8 col-lg-6">
     <div class="card shadow-sm border-0">
-      <div class="card-header fw-semibold bg-primary text-white">
-        {% if tecnico %}Editar perfil{% else %}Crear nuevo técnico{% endif %}
+      <div class="card-header fw-semibold eb-card-header-blue">
+        {% if tecnico %}Editar perfil{% else %}Crear nuevo usuario{% endif %}
       </div>
       <div class="card-body">
         <form method="POST">
 
+          <!-- Rol (primero para contexto visual) -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Rol</label>
+            <div class="d-flex flex-wrap gap-2" id="rol-btns">
+              {% set rol_labels = {
+                'super_admin': ('🔴', 'Super Admin', 'Solo para el dueño del sistema'),
+                'admin': ('🔵', 'Administrador', 'Puede crear técnicos y repartidores'),
+                'tecnico': ('🟢', 'Técnico', 'Realiza reparaciones e instalaciones'),
+                'repartidor': ('🟡', 'Repartidor', 'Realiza entregas y repartos'),
+              } %}
+              {% for rol_key in roles_permitidos %}
+              {% set info = rol_labels[rol_key] %}
+              <label class="eb-rol-btn {% if (tecnico and tecnico.rol == rol_key) or (not tecnico and rol_key == 'tecnico') %}active{% endif %}">
+                <input type="radio" name="rol" value="{{ rol_key }}"
+                       {% if (tecnico and tecnico.rol == rol_key) or (not tecnico and rol_key == 'tecnico') %}checked{% endif %}
+                       class="d-none">
+                <span class="fs-5">{{ info[0] }}</span>
+                <div>
+                  <div class="fw-semibold small">{{ info[1] }}</div>
+                  <div class="text-muted" style="font-size:0.7rem">{{ info[2] }}</div>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+            {% if tecnico and tecnico.es_super_admin %}
+            <div class="form-text text-warning mt-1">⚠️ El super administrador no puede cambiar de rol.</div>
+            {% endif %}
+          </div>
+
+          <hr class="my-3">
+
           {% if not tecnico %}
-          <!-- Usuario (solo en creación) -->
           <div class="mb-3">
             <label class="form-label fw-semibold">Usuario <span class="text-danger">*</span></label>
-            <input type="text" name="username" class="form-control"
+            <input type="text" name="username" class="form-control form-control-lg"
                    placeholder="nombre_usuario" required autocomplete="off">
-            <div class="form-text">Solo letras, números y guiones. Sin espacios.</div>
+            <div class="form-text">Sin espacios, solo letras y números.</div>
           </div>
           {% else %}
           <div class="mb-3">
@@ -33,23 +63,18 @@
           </div>
           {% endif %}
 
-          <!-- Contraseña -->
           <div class="mb-3">
             <label class="form-label fw-semibold">
               Contraseña {% if not tecnico %}<span class="text-danger">*</span>{% endif %}
             </label>
-            <input type="password" name="password" class="form-control"
+            <input type="password" name="password" class="form-control form-control-lg"
                    {% if not tecnico %}required{% endif %}
-                   placeholder="{% if tecnico %}Dejar vacío para no cambiar{% else %}Contraseña segura{% endif %}"
+                   placeholder="{% if tecnico %}Dejar vacío para no cambiar{% else %}Contraseña{% endif %}"
                    autocomplete="new-password">
-            {% if tecnico %}
-            <div class="form-text">Dejar vacío para mantener la contraseña actual.</div>
-            {% endif %}
           </div>
 
           <hr class="my-3">
 
-          <!-- Nombre completo -->
           <div class="mb-3">
             <label class="form-label fw-semibold">Nombre completo</label>
             <input type="text" name="nombre_completo" class="form-control"
@@ -57,48 +82,29 @@
                    placeholder="Nombre y apellidos">
           </div>
 
-          <!-- Teléfono -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">Teléfono de contacto</label>
+            <label class="form-label fw-semibold">Teléfono</label>
             <input type="tel" name="telefono_perfil" class="form-control"
                    value="{{ tecnico.telefono_perfil or '' if tecnico else '' }}"
                    placeholder="600 000 000">
           </div>
 
-          <!-- Telegram Chat ID -->
           <div class="mb-3">
             <label class="form-label fw-semibold">Telegram Chat ID</label>
             <input type="text" name="telegram_chat_id" class="form-control"
                    value="{{ tecnico.telegram_chat_id or '' if tecnico else '' }}"
                    placeholder="Ej: 123456789">
             <div class="form-text">
-              Para recibir notificaciones. El técnico puede obtener su ID hablando con
+              Para notificaciones. Obtener hablando con
               <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a>.
             </div>
           </div>
 
-          <!-- Rol -->
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Rol</label>
-            <select name="rol" class="form-select"
-                    {% if tecnico and tecnico.username == 'admin' %}disabled{% endif %}>
-              <option value="tecnico" {% if tecnico and tecnico.rol == 'tecnico' %}selected{% elif not tecnico %}selected{% endif %}>
-                Técnico
-              </option>
-              <option value="admin" {% if tecnico and tecnico.rol == 'admin' %}selected{% endif %}>
-                Administrador
-              </option>
-            </select>
-            {% if tecnico and tecnico.username == 'admin' %}
-            <div class="form-text text-warning">El usuario admin siempre es administrador.</div>
-            {% endif %}
-          </div>
-
           <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary flex-grow-1">
-              {% if tecnico %}💾 Guardar cambios{% else %}✅ Crear técnico{% endif %}
+            <button type="submit" class="btn btn-primary flex-grow-1 btn-lg">
+              {% if tecnico %}💾 Guardar cambios{% else %}✅ Crear usuario{% endif %}
             </button>
-            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
           </div>
 
         </form>
@@ -106,4 +112,18 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Selector visual de rol
+document.querySelectorAll('.eb-rol-btn').forEach(label => {
+  label.addEventListener('click', function() {
+    {% if not (tecnico and tecnico.es_super_admin) %}
+    document.querySelectorAll('.eb-rol-btn').forEach(l => l.classList.remove('active'));
+    this.classList.add('active');
+    {% endif %}
+  });
+});
+</script>
 {% endblock %}

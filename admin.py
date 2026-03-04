@@ -2,6 +2,7 @@ from functools import wraps
 from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
+from sqlalchemy import func
 from extensions import db
 from models import User, Aviso
 
@@ -9,6 +10,7 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
 def admin_required(f):
+    """Requiere rol admin o super_admin."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.es_admin:
@@ -17,42 +19,82 @@ def admin_required(f):
     return decorated
 
 
+def super_admin_required(f):
+    """Requiere rol super_admin exclusivamente."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.es_super_admin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _stats_usuario(user_id):
+    """Estadísticas rápidas para un usuario."""
+    return {
+        'total':       Aviso.query.filter_by(asignado_a=user_id).count(),
+        'activos':     Aviso.query.filter(Aviso.asignado_a == user_id,
+                                          Aviso.estado != 'finalizado').count(),
+        'finalizados': Aviso.query.filter_by(asignado_a=user_id, estado='finalizado').count(),
+        'morosos':     Aviso.query.filter_by(asignado_a=user_id, cobro_estado='moroso').count(),
+        'facturado':   round(db.session.query(
+            func.sum(
+                func.coalesce(Aviso.precio_mano_obra, 0) +
+                func.coalesce(Aviso.gastos_extra, 0) -
+                func.coalesce(Aviso.descuento, 0)
+            )
+        ).filter(Aviso.asignado_a == user_id, Aviso.estado == 'finalizado').scalar() or 0, 2),
+    }
+
+
 @admin_bp.route('/')
 @login_required
 @admin_required
 def index():
-    tecnicos = User.query.order_by(User.rol, User.username).all()
-    # Estadísticas rápidas por técnico
-    stats = {}
-    for t in tecnicos:
-        stats[t.id] = {
-            'total':      Aviso.query.filter_by(asignado_a=t.id).count(),
-            'activos':    Aviso.query.filter(Aviso.asignado_a==t.id, Aviso.estado!='finalizado').count(),
-            'finalizados':Aviso.query.filter_by(asignado_a=t.id, estado='finalizado').count(),
-            'morosos':    Aviso.query.filter_by(asignado_a=t.id, cobro_estado='moroso').count(),
-        }
-    return render_template('admin/index.html', tecnicos=tecnicos, stats=stats)
+    if current_user.es_super_admin:
+        # Super admin ve todos los usuarios
+        usuarios = User.query.order_by(User.rol, User.username).all()
+    else:
+        # Admin regular ve solo su equipo
+        usuarios = User.query.filter_by(creado_por_id=current_user.id).order_by(User.username).all()
+
+    stats = {u.id: _stats_usuario(u.id) for u in usuarios}
+    return render_template('admin/index.html', usuarios=usuarios, stats=stats)
 
 
-@admin_bp.route('/tecnico/nuevo', methods=['GET', 'POST'])
+@admin_bp.route('/usuario/nuevo', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def nuevo_tecnico():
+    # Determinar roles permitidos según quien crea
+    if current_user.es_super_admin:
+        roles_permitidos = ['super_admin', 'admin', 'tecnico', 'repartidor']
+    else:
+        roles_permitidos = ['tecnico', 'repartidor']
+
     if request.method == 'POST':
-        username   = request.form.get('username', '').strip()
-        password   = request.form.get('password', '').strip()
-        nombre     = request.form.get('nombre_completo', '').strip()
-        telefono   = request.form.get('telefono_perfil', '').strip()
-        tg_chat    = request.form.get('telegram_chat_id', '').strip()
-        rol        = request.form.get('rol', 'tecnico')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        nombre   = request.form.get('nombre_completo', '').strip()
+        telefono = request.form.get('telefono_perfil', '').strip()
+        tg_chat  = request.form.get('telegram_chat_id', '').strip()
+        rol      = request.form.get('rol', 'tecnico')
+
+        # Validar que el rol sea permitido
+        if rol not in roles_permitidos:
+            flash('Rol no permitido.', 'danger')
+            return render_template('admin/form_tecnico.html', tecnico=None,
+                                   roles_permitidos=roles_permitidos)
 
         if not username or not password:
             flash('Usuario y contraseña son obligatorios.', 'danger')
-            return render_template('admin/form_tecnico.html', tecnico=None)
+            return render_template('admin/form_tecnico.html', tecnico=None,
+                                   roles_permitidos=roles_permitidos)
 
         if User.query.filter_by(username=username).first():
             flash(f'El usuario "{username}" ya existe.', 'danger')
-            return render_template('admin/form_tecnico.html', tecnico=None)
+            return render_template('admin/form_tecnico.html', tecnico=None,
+                                   roles_permitidos=roles_permitidos)
 
         user = User(
             username=username,
@@ -62,48 +104,87 @@ def nuevo_tecnico():
             telegram_chat_id=tg_chat or None,
             rol=rol,
             is_active=True,
+            creado_por_id=current_user.id,
         )
         db.session.add(user)
         db.session.commit()
-        flash(f'Técnico "{username}" creado correctamente.', 'success')
+        flash(f'Usuario "{username}" creado correctamente.', 'success')
         return redirect(url_for('admin.index'))
 
-    return render_template('admin/form_tecnico.html', tecnico=None)
+    return render_template('admin/form_tecnico.html', tecnico=None,
+                           roles_permitidos=roles_permitidos)
 
 
-@admin_bp.route('/tecnico/<int:id>/editar', methods=['GET', 'POST'])
+@admin_bp.route('/usuario/<int:id>/editar', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def editar_tecnico(id):
     tecnico = User.query.get_or_404(id)
 
+    # Solo super_admin puede editar cualquier usuario
+    # Admin regular solo puede editar a los de su equipo
+    if not current_user.es_super_admin:
+        if tecnico.creado_por_id != current_user.id:
+            abort(403)
+
+    if current_user.es_super_admin:
+        roles_permitidos = ['super_admin', 'admin', 'tecnico', 'repartidor']
+    else:
+        roles_permitidos = ['tecnico', 'repartidor']
+
     if request.method == 'POST':
         tecnico.nombre_completo  = request.form.get('nombre_completo', '').strip() or None
         tecnico.telefono_perfil  = request.form.get('telefono_perfil', '').strip() or None
         tecnico.telegram_chat_id = request.form.get('telegram_chat_id', '').strip() or None
-        tecnico.rol              = request.form.get('rol', tecnico.rol)
+
+        nuevo_rol = request.form.get('rol', tecnico.rol)
+        if nuevo_rol in roles_permitidos:
+            tecnico.rol = nuevo_rol
 
         nueva_password = request.form.get('password', '').strip()
         if nueva_password:
             tecnico.password = generate_password_hash(nueva_password)
 
         db.session.commit()
-        flash(f'Técnico "{tecnico.username}" actualizado.', 'success')
+        flash(f'Usuario "{tecnico.username}" actualizado.', 'success')
         return redirect(url_for('admin.index'))
 
-    return render_template('admin/form_tecnico.html', tecnico=tecnico)
+    return render_template('admin/form_tecnico.html', tecnico=tecnico,
+                           roles_permitidos=roles_permitidos)
 
 
-@admin_bp.route('/tecnico/<int:id>/toggle', methods=['POST'])
+@admin_bp.route('/usuario/<int:id>/toggle', methods=['POST'])
 @login_required
 @admin_required
 def toggle_tecnico(id):
     tecnico = User.query.get_or_404(id)
-    if tecnico.username == 'admin':
-        flash('No puedes desactivar al administrador principal.', 'danger')
+
+    # No se puede desactivar a un super_admin
+    if tecnico.es_super_admin:
+        flash('No puedes desactivar a un super administrador.', 'danger')
         return redirect(url_for('admin.index'))
+
+    # Admin regular solo puede gestionar su equipo
+    if not current_user.es_super_admin and tecnico.creado_por_id != current_user.id:
+        abort(403)
+
     tecnico.is_active = not tecnico.is_active
     db.session.commit()
     estado = 'activado' if tecnico.is_active else 'desactivado'
-    flash(f'Técnico "{tecnico.username}" {estado}.', 'info')
+    flash(f'Usuario "{tecnico.username}" {estado}.', 'info')
     return redirect(url_for('admin.index'))
+
+
+# Mantener ruta antigua por compatibilidad con links existentes
+@admin_bp.route('/tecnico/nuevo', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def nuevo_tecnico_legacy():
+    return redirect(url_for('admin.nuevo_tecnico'))
+
+
+@admin_bp.route('/tecnico/<int:id>/editar', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def editar_tecnico_legacy(id):
+    return redirect(url_for('admin.editar_tecnico', id=id))

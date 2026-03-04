@@ -138,7 +138,7 @@ def telegram_ajustes():
 @dashboard_bp.route('/dashboard/telegram/test', methods=['POST'])
 @login_required
 def telegram_test():
-    ok = enviar_mensaje('✅ <b>Prueba desde CadizTécnico</b>\n\nLa conexión con Telegram funciona correctamente.')
+    ok = enviar_mensaje('✅ <b>Prueba desde ElectroBahía</b>\n\nLa conexión con Telegram funciona correctamente.')
     return jsonify({'ok': ok})
 
 

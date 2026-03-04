@@ -5,29 +5,36 @@
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
   <h4 class="fw-bold mb-0">📅 Calendario de Citas</h4>
 
-  {% if current_user.es_admin %}
-  <div class="d-flex align-items-center gap-2">
-    <label class="form-label mb-0 fw-semibold small text-muted">Técnico:</label>
-    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:160px">
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if current_user.es_admin %}
+    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:150px">
       <option value="">— Todos —</option>
       {% for t in tecnicos %}
       <option value="{{ t.id }}">{{ t.display_name or t.username }}</option>
       {% endfor %}
     </select>
+    {% endif %}
+
+    <select id="filtro-tipo" class="form-select form-select-sm" style="min-width:140px">
+      <option value="">🔍 Todo tipo</option>
+      <option value="reparacion">🔧 Reparación</option>
+      <option value="instalacion">⚡ Instalación</option>
+      <option value="reparto">📦 Reparto</option>
+    </select>
   </div>
-  {% endif %}
 </div>
 
 <!-- Leyenda de estados -->
 <div class="d-flex flex-wrap gap-2 mb-3">
   <span class="badge rounded-pill px-3 py-2" style="background:#ffc107;color:#000">Pendiente</span>
   <span class="badge rounded-pill px-3 py-2 bg-danger">Hoy</span>
-  <span class="badge rounded-pill px-3 py-2" style="background:#0dcaf0;color:#000">Esperando material</span>
-  <span class="badge rounded-pill px-3 py-2 bg-primary">Segunda visita</span>
+  <span class="badge rounded-pill px-3 py-2" style="background:#0dcaf0;color:#000">Esp. material</span>
+  <span class="badge rounded-pill px-3 py-2 bg-primary">2ª visita</span>
   <span class="badge rounded-pill px-3 py-2" style="background:#adb5bd;color:#000">Finalizado</span>
+  <span class="ms-2 text-muted small align-self-center">🔧 Rep · ⚡ Inst · 📦 Rep</span>
 </div>
 
-<div class="card shadow-sm border-0">
+<div class="card shadow-sm border-0 eb-cal-card">
   <div class="card-body p-2 p-md-3">
     <div id="calendario"></div>
   </div>
@@ -36,15 +43,18 @@
 <!-- Modal detalle rápido -->
 <div class="modal fade" id="modalEvento" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header" id="modalHeader">
-        <h5 class="modal-title fw-bold" id="modalTitulo"></h5>
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2" id="modalHeader">
+        <div>
+          <h5 class="modal-title fw-bold mb-0" id="modalTitulo"></h5>
+          <small id="modalNombreCliente" class="opacity-75"></small>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body" id="modalCuerpo"></div>
-      <div class="modal-footer">
-        <a id="modalEnlace" href="#" class="btn btn-primary btn-sm">Ver aviso completo</a>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+      <div class="modal-body py-2" id="modalCuerpo"></div>
+      <div class="modal-footer py-2">
+        <a id="modalEnlace" href="#" class="btn btn-primary btn-sm">Ver aviso completo →</a>
+        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
@@ -52,27 +62,29 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- FullCalendar v6 — global build (incluye todos los plugins y locales) -->
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-  /* ── Helpers ── */
   const calEl = document.getElementById('calendario');
   const modal = new bootstrap.Modal(document.getElementById('modalEvento'));
   const filtroTecnico = document.getElementById('filtro-tecnico');
+  const filtroTipo    = document.getElementById('filtro-tipo');
 
   function buildUrl(info) {
-    const tid = filtroTecnico ? filtroTecnico.value : '';
-    return `/calendario/api/eventos?start=${info.startStr}&end=${info.endStr}${tid ? '&tecnico_id=' + tid : ''}`;
+    const tid  = filtroTecnico ? filtroTecnico.value : '';
+    const tipo = filtroTipo ? filtroTipo.value : '';
+    let url = `/calendario/api/eventos?start=${info.startStr}&end=${info.endStr}`;
+    if (tid)  url += `&tecnico_id=${tid}`;
+    if (tipo) url += `&tipo=${tipo}`;
+    return url;
   }
 
-  /* ── Calendario ── */
   const cal = new FullCalendar.Calendar(calEl, {
     locale: 'es',
     initialView: 'dayGridMonth',
     height: 'auto',
-    firstDay: 1,   /* lunes primero */
+    firstDay: 1,
     eventDisplay: 'block',
 
     headerToolbar: {
@@ -87,7 +99,6 @@ document.addEventListener('DOMContentLoaded', function () {
       list:  'Lista',
     },
 
-    /* Carga de eventos via fetch */
     events: function (fetchInfo, success, failure) {
       fetch(buildUrl(fetchInfo))
         .then(r => r.json())
@@ -95,7 +106,6 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => failure(err));
     },
 
-    /* Click en evento → modal rápido */
     eventClick: function (info) {
       info.jsEvent.preventDefault();
       const ev    = info.event;
@@ -104,24 +114,37 @@ document.addEventListener('DOMContentLoaded', function () {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
       });
 
-      document.getElementById('modalTitulo').textContent = ev.title;
-      document.getElementById('modalHeader').style.background = ev.backgroundColor;
-      document.getElementById('modalHeader').style.color = ev.textColor || '#000';
+      // Header con color del estado
+      const header = document.getElementById('modalHeader');
+      header.style.background = ev.backgroundColor;
+      header.style.color = ev.textColor || '#000';
       document.querySelector('#modalHeader .btn-close').style.filter =
         (ev.textColor === '#ffffff') ? 'invert(1)' : '';
 
-      let html = `
-        <table class="table table-sm mb-0">
-          <tr><th class="text-muted pe-3" style="width:40%">📅 Fecha</th><td>${fecha}</td></tr>
-          <tr><th class="text-muted">📋 Estado</th><td><span class="badge bg-secondary">${props.estado}</span></td></tr>`;
-      if (props.electrodomestico)
-        html += `<tr><th class="text-muted">🔧 Electrodoméstico</th><td>${props.electrodomestico}${props.marca ? ' (' + props.marca + ')' : ''}</td></tr>`;
-      if (props.telefono)
-        html += `<tr><th class="text-muted">📞 Teléfono</th><td><a href="tel:${props.telefono}">${props.telefono}</a></td></tr>`;
+      // Título = calle, subtítulo = nombre cliente
+      document.getElementById('modalTitulo').textContent = props.calle || props.nombre_cliente || ev.title;
+      const subtitulo = document.getElementById('modalNombreCliente');
+      if (props.calle && props.nombre_cliente) {
+        subtitulo.textContent = '👤 ' + props.nombre_cliente;
+        subtitulo.style.display = '';
+      } else {
+        subtitulo.style.display = 'none';
+      }
+
+      let html = `<table class="table table-sm mb-0">
+        <tr><th class="text-muted pe-3" style="width:38%">📅 Fecha</th><td>${fecha}</td></tr>
+        <tr><th class="text-muted">${props.tipo_icon} Servicio</th><td>${props.tipo_servicio}</td></tr>
+        <tr><th class="text-muted">📋 Estado</th><td><span class="badge bg-secondary">${props.estado}</span></td></tr>`;
       if (props.localidad)
-        html += `<tr><th class="text-muted">📍 Localidad</th><td>${props.localidad}</td></tr>`;
+        html += `<tr><th class="text-muted">🏙️ Localidad</th><td>${props.localidad}</td></tr>`;
+      if (props.electrodomestico)
+        html += `<tr><th class="text-muted">🔧 Aparato</th><td>${props.electrodomestico}${props.marca ? ' · ' + props.marca : ''}</td></tr>`;
+      if (props.telefono)
+        html += `<tr><th class="text-muted">📞 Teléfono</th><td><a href="tel:${props.telefono}" class="text-decoration-none">${props.telefono}</a></td></tr>`;
       if (props.tecnico)
-        html += `<tr><th class="text-muted">👤 Técnico</th><td>${props.tecnico}</td></tr>`;
+        html += `<tr><th class="text-muted">👤 Asignado</th><td>${props.tecnico}</td></tr>`;
+      if (props.origen && props.origen !== 'Particular')
+        html += `<tr><th class="text-muted">🏪 Origen</th><td>${props.origen}</td></tr>`;
       html += `</table>`;
 
       document.getElementById('modalCuerpo').innerHTML = html;
@@ -129,29 +152,37 @@ document.addEventListener('DOMContentLoaded', function () {
       modal.show();
     },
 
-    /* Mostrar número de avisos cuando hay muchos en un día */
     dayMaxEvents: 4,
 
-    /* Estilo extra en la celda "hoy" */
     dayCellDidMount: function (info) {
       const hoy = new Date();
       if (info.date.toDateString() === hoy.toDateString()) {
-        info.el.style.background = '#fff3cd';
+        info.el.style.background = '#e8f4fd';
       }
+    },
+
+    // Mostrar calle en la vista lista
+    eventContent: function(arg) {
+      return { html: `<div class="fc-event-main-frame">
+        <div class="fc-event-title-container">
+          <div class="fc-event-title fc-sticky">${arg.event.title}</div>
+        </div>
+      </div>` };
     },
   });
 
   cal.render();
 
-  /* Refrescar al cambiar filtro de técnico */
   if (filtroTecnico) {
     filtroTecnico.addEventListener('change', () => cal.refetchEvents());
+  }
+  if (filtroTipo) {
+    filtroTipo.addEventListener('change', () => cal.refetchEvents());
   }
 });
 </script>
 
 <style>
-/* Ajustes visuales del calendario */
 #calendario .fc-toolbar-title {
   font-size: 1.1rem;
   font-weight: 700;
@@ -160,20 +191,31 @@ document.addEventListener('DOMContentLoaded', function () {
 #calendario .fc-event {
   cursor: pointer;
   font-size: 0.78rem;
-  padding: 1px 4px;
+  padding: 2px 5px;
+  border-radius: 4px;
 }
 #calendario .fc-daygrid-day-number {
   font-weight: 600;
 }
 #calendario .fc-col-header-cell {
-  background: #f8f9fa;
+  background: #f0f4f8;
   font-weight: 600;
   text-transform: capitalize;
+}
+#calendario .fc-day-today {
+  background: #e8f4fd !important;
+}
+.eb-cal-card {
+  border-radius: 12px;
 }
 @media (max-width: 576px) {
   #calendario .fc-toolbar {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.4rem;
+  }
+  #calendario .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
   }
 }
 </style>

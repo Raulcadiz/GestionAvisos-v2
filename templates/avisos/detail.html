@@ -6,22 +6,31 @@
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
   <div>
     <h2 class="h4 mb-0">
+      {{ aviso.tipo_servicio_icon() }}
       {{ aviso.nombre_cliente }}
       <span class="badge {{ aviso.estado_badge_class() }} fs-6" id="estado-badge">{{ aviso.estado_label() }}</span>
     </h2>
-    <small class="text-muted">Aviso #{{ aviso.id }} · Creado el {{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}</small>
+    <small class="text-muted">
+      Aviso #{{ aviso.id }} · {{ aviso.tipo_servicio_label() }} ·
+      {{ aviso.origen_icon() }} {{ aviso.origen_label() }} ·
+      {{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}
+    </small>
   </div>
   <div class="d-flex gap-2 flex-wrap">
-    <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-primary">✏️ Editar</a>
-    <a href="{{ url_for('exports.albaran_pdf', id=aviso.id) }}" class="btn btn-outline-success" target="_blank">📄 Albarán</a>
+    <a href="{{ url_for('avisos.edit', id=aviso.id) }}" class="btn btn-primary btn-sm">✏️ Editar</a>
+    {% if puede_ver_economico %}
+    <a href="{{ url_for('exports.albaran_pdf', id=aviso.id) }}" class="btn btn-outline-success btn-sm" target="_blank">📄 Albarán</a>
+    {% endif %}
     <form method="POST" action="{{ url_for('avisos.duplicar', id=aviso.id) }}" class="d-inline">
-      <button type="submit" class="btn btn-outline-primary" title="Duplicar como segunda visita">🔁 2ª Visita</button>
+      <button type="submit" class="btn btn-outline-primary btn-sm" title="Segunda visita">🔁 2ª Visita</button>
     </form>
+    {% if current_user.es_admin %}
     <form method="POST" action="{{ url_for('avisos.eliminar', id=aviso.id) }}" class="d-inline"
-          onsubmit="return confirm('¿Eliminar este aviso? Esta acción no se puede deshacer.')">
-      <button type="submit" class="btn btn-outline-danger">🗑 Eliminar</button>
+          onsubmit="return confirm('¿Eliminar este aviso? No se puede deshacer.')">
+      <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Eliminar</button>
     </form>
-    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary">← Panel</a>
+    {% endif %}
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary btn-sm">← Panel</a>
   </div>
 </div>
 
@@ -31,32 +40,38 @@
 
     <!-- Cliente -->
     <div class="card shadow-sm border-0 mb-3">
-      <div class="card-header fw-semibold bg-primary text-white">👤 Cliente</div>
+      <div class="card-header fw-semibold eb-card-header-blue">👤 Cliente</div>
       <div class="card-body">
         <div class="row g-2">
           <div class="col-12 col-md-6">
             <div class="text-muted small">Nombre</div>
-            <div class="fw-semibold">{{ aviso.nombre_cliente }}</div>
+            <div class="fw-semibold fs-5">{{ aviso.nombre_cliente }}</div>
           </div>
           <div class="col-12 col-md-6">
             <div class="text-muted small">Teléfono</div>
             <div class="d-flex align-items-center gap-2 flex-wrap mt-1">
-              <a href="tel:{{ aviso.telefono }}" class="btn btn-success">📞 {{ aviso.telefono }}</a>
+              <a href="tel:{{ aviso.telefono }}" class="btn btn-success btn-sm">📞 {{ aviso.telefono }}</a>
               <a href="{{ url_for('avisos.customer_history', telefono=aviso.telefono) }}"
                  class="btn btn-sm btn-outline-secondary">Historial</a>
             </div>
           </div>
           {% if aviso.calle %}
-          <div class="col-12 col-md-8">
+          <div class="col-12">
             <div class="text-muted small">Dirección</div>
             {% set maps_query = (aviso.calle + (', ' + aviso.localidad if aviso.localidad else '') + ', Cádiz') | urlencode %}
             <div class="fw-bold fs-5">
               <a href="https://maps.google.com/?q={{ maps_query }}" target="_blank" rel="noopener"
-                 class="text-dark text-decoration-none" title="Abrir en Google Maps">
+                 class="text-dark text-decoration-none">
                 📍 {{ aviso.calle }}{% if aviso.localidad %}, {{ aviso.localidad }}{% endif %}
                 <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem">Maps ↗</span>
               </a>
             </div>
+          </div>
+          {% endif %}
+          {% if aviso.origen and aviso.origen != 'particular' %}
+          <div class="col-12 col-md-4">
+            <div class="text-muted small">Origen</div>
+            <div>{{ aviso.origen_icon() }} {{ aviso.origen_label() }}</div>
           </div>
           {% endif %}
         </div>
@@ -65,7 +80,7 @@
 
     <!-- Electrodoméstico -->
     <div class="card shadow-sm border-0 mb-3">
-      <div class="card-header fw-semibold bg-secondary text-white">🔧 Electrodoméstico</div>
+      <div class="card-header fw-semibold bg-secondary text-white">{{ aviso.tipo_servicio_icon() }} Aparato</div>
       <div class="card-body">
         <div class="row g-2">
           <div class="col-6">
@@ -78,22 +93,22 @@
           </div>
           {% if aviso.descripcion %}
           <div class="col-12">
-            <div class="text-muted small">Descripción de la avería</div>
+            <div class="text-muted small">Descripción</div>
             <div class="mt-1">{{ aviso.descripcion }}</div>
           </div>
           {% endif %}
           {% if aviso.notas %}
           <div class="col-12">
             <div class="text-muted small">Notas internas</div>
-            <div class="mt-1 text-secondary">{{ aviso.notas }}</div>
+            <div class="mt-1 text-secondary fst-italic">{{ aviso.notas }}</div>
           </div>
           {% endif %}
         </div>
       </div>
     </div>
 
-    <!-- Datos económicos -->
-    {% if aviso.tiene_datos_economicos %}
+    <!-- Datos económicos (solo si tiene permiso) -->
+    {% if puede_ver_economico and aviso.tiene_datos_economicos %}
     <div class="card shadow-sm border-0 mb-3 border-start border-4 border-success">
       <div class="card-header fw-semibold bg-success text-white d-flex justify-content-between align-items-center">
         <span>💶 Datos Económicos</span>
@@ -112,7 +127,7 @@
             <div class="text-muted small">Gastos extra</div>
             <div class="fw-semibold fs-5">{{ '%.2f'|format(aviso.gastos_extra) }} €</div>
             {% if aviso.gastos_extra_desc %}
-              <div class="small text-muted">{{ aviso.gastos_extra_desc }}</div>
+            <div class="small text-muted">{{ aviso.gastos_extra_desc }}</div>
             {% endif %}
           </div>
           {% endif %}
@@ -124,7 +139,7 @@
           {% endif %}
           <div class="col-6 col-md-3">
             <div class="text-muted small">Total cliente</div>
-            <div class="fw-bold fs-5 text-primary">{{ '%.2f'|format(aviso.total_cliente) }} €</div>
+            <div class="fw-bold fs-4 text-primary">{{ '%.2f'|format(aviso.total_cliente) }} €</div>
           </div>
           {% if aviso.coste_materiales is not none %}
           <div class="col-6 col-md-3">
@@ -156,14 +171,14 @@
       <div class="card-body">
         <div class="row g-2">
           {% for photo in aviso.photos %}
-            <div class="col-4 col-md-3 col-lg-2">
-              <a href="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}" target="_blank">
-                <img src="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}"
-                     class="img-thumbnail w-100"
-                     style="height:100px;object-fit:cover"
-                     alt="{{ photo.original_name }}">
-              </a>
-            </div>
+          <div class="col-4 col-md-3 col-lg-2">
+            <a href="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}" target="_blank">
+              <img src="{{ url_for('avisos.uploaded_file', filename=photo.filename) }}"
+                   class="img-thumbnail w-100"
+                   style="height:100px;object-fit:cover"
+                   alt="{{ photo.original_name }}">
+            </a>
+          </div>
           {% endfor %}
         </div>
       </div>
@@ -172,8 +187,9 @@
 
   </div>
 
-  <!-- Panel lateral: Estado y fechas -->
+  <!-- Panel lateral -->
   <div class="col-12 col-lg-4">
+    <!-- Estado y fechas -->
     <div class="card shadow-sm border-0 mb-3">
       <div class="card-header fw-semibold bg-info text-dark">📅 Fechas y Estado</div>
       <div class="card-body">
@@ -189,7 +205,6 @@
           <div class="text-muted small mb-1">Estado actual</div>
           <span class="badge {{ aviso.estado_badge_class() }} fs-6 mb-2" id="estado-badge-panel">{{ aviso.estado_label() }}</span>
         </div>
-        <!-- Cambio rápido de estado -->
         <div>
           <div class="text-muted small mb-1">Cambiar estado:</div>
           <select class="form-select estado-select" data-aviso-id="{{ aviso.id }}">
@@ -202,14 +217,19 @@
       </div>
     </div>
 
+    <!-- Técnico / Repartidor -->
     <div class="card shadow-sm border-0 mb-3">
-      <div class="card-header fw-semibold">👤 Técnico</div>
+      <div class="card-header fw-semibold">
+        {{ '📦 Repartidor' if aviso.tecnico and aviso.tecnico.rol == 'repartidor' else '🔧 Técnico' }}
+      </div>
       <div class="card-body small">
         {% if aviso.tecnico %}
           <div class="fw-semibold">{{ aviso.tecnico.display_name }}</div>
-          <div class="text-muted">@{{ aviso.tecnico.username }}</div>
+          <div class="text-muted"><span class="badge {{ aviso.tecnico.rol_badge_class }}">{{ aviso.tecnico.rol_label }}</span></div>
           {% if aviso.tecnico.telefono_perfil %}
-            <a href="tel:{{ aviso.tecnico.telefono_perfil }}" class="text-success">📞 {{ aviso.tecnico.telefono_perfil }}</a>
+            <a href="tel:{{ aviso.tecnico.telefono_perfil }}" class="text-success mt-1 d-block">
+              📞 {{ aviso.tecnico.telefono_perfil }}
+            </a>
           {% endif %}
         {% else %}
           <span class="text-muted">— Sin asignar</span>
@@ -217,6 +237,7 @@
       </div>
     </div>
 
+    <!-- Historial -->
     <div class="card shadow-sm border-0">
       <div class="card-header fw-semibold">🕐 Historial</div>
       <div class="card-body small text-muted">
@@ -230,7 +251,6 @@
 
 {% block scripts %}
 <script>
-// Cambio de estado AJAX
 const ESTADO_CLASSES = {
   'pendiente': 'badge bg-warning text-dark fs-6',
   'hoy': 'badge bg-danger fs-6',
