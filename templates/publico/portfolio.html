@@ -1,0 +1,82 @@
+{% extends 'publico/base_publica.html' %}
+{% block title %}Trabajos realizados — ElectroBahía Cádiz{% endblock %}
+{% block meta_desc %}Portfolio de reparaciones e instalaciones de electrodomésticos en Cádiz. Trabajos reales con garantía.{% endblock %}
+
+{% block head %}
+<style>
+  .portfolio-hero {
+    background: linear-gradient(135deg, #0d1b3e, #1565c0);
+    color: #fff;
+    padding: 3rem 0;
+    text-align: center;
+  }
+  .portfolio-card {
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 16px rgba(0,0,0,.08);
+    height: 100%;
+    transition: transform .2s;
+    background: #fff;
+  }
+  .portfolio-card:hover { transform: translateY(-3px); }
+  .portfolio-img {
+    width: 100%;
+    height: 220px;
+    background: #e3f2fd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    overflow: hidden;
+  }
+  .portfolio-img img { width: 100%; height: 220px; object-fit: cover; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="portfolio-hero">
+  <div class="container">
+    <h1 class="h2 fw-bold mb-2">Trabajos realizados</h1>
+    <p class="mb-0 opacity-75">Lo que hacemos, lo mostramos. Sin trampa ni cartón.</p>
+  </div>
+</div>
+
+<div class="container py-5">
+  {% if items %}
+  <div class="row g-4">
+    {% for item in items %}
+    <div class="col-sm-6 col-lg-4">
+      <div class="portfolio-card">
+        <div class="portfolio-img">
+          {% if item.foto_url %}
+            <img src="{{ item.foto_url }}" alt="{{ item.titulo }}" loading="lazy">
+          {% else %}
+            {{ item.tipo_icon }}
+          {% endif %}
+        </div>
+        <div class="p-3">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:.75rem">
+              {{ item.tipo_icon }} {{ item.tipo_label }}
+            </span>
+            <span class="text-muted small">{{ item.fecha.strftime('%b %Y') if item.fecha else '' }}</span>
+          </div>
+          <h6 class="fw-bold mb-1">{{ item.titulo }}</h6>
+          {% if item.descripcion %}
+            <p class="text-muted small mb-0">{{ item.descripcion }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-5">
+    <div style="font-size:4rem">🔧</div>
+    <h4 class="mt-3">Pronto aquí tus trabajos</h4>
+    <p class="text-muted">Estamos actualizando el portfolio con los últimos trabajos.</p>
+    <a href="{{ url_for('publico.aviso_publico') }}" class="btn btn-primary mt-2">Solicitar servicio</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

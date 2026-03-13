@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Editar' if item else 'Nuevo' }} trabajo — Portfolio{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{{ url_for('admin.portfolio_list') }}" class="btn btn-outline-secondary btn-sm">← Volver</a>
+  <h4 class="mb-0 fw-bold">{{ '✏️ Editar' if item else '➕ Añadir' }} trabajo al portfolio</h4>
+</div>
+
+<div class="card border-0 shadow-sm rounded-3" style="max-width:600px">
+  <div class="card-body p-4">
+    <form method="POST" enctype="multipart/form-data">
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Título <span class="text-danger">*</span></label>
+        <input type="text" name="titulo" class="form-control"
+               value="{{ item.titulo if item else '' }}"
+               placeholder="Reparación lavadora Balay · San Fernando" required>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Tipo de trabajo</label>
+        <select name="tipo" class="form-select">
+          {% for key, label, icon in tipos %}
+          <option value="{{ key }}" {{ 'selected' if item and item.tipo == key else '' }}>
+            {{ icon }} {{ label }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Descripción (opcional)</label>
+        <textarea name="descripcion" class="form-control" rows="3"
+                  placeholder="Breve descripción del trabajo realizado...">{{ item.descripcion if item and item.descripcion else '' }}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Foto</label>
+        {% if item and item.foto_url %}
+          <div class="mb-2">
+            <img src="{{ item.foto_url }}" class="rounded-2" style="max-height:140px;max-width:100%;object-fit:cover">
+            <p class="text-muted small mt-1">Selecciona una nueva foto para reemplazar la actual.</p>
+          </div>
+        {% endif %}
+        <input type="file" name="foto" class="form-control" accept="image/*">
+        <div class="form-text">JPG, PNG o WEBP. Máx. 10 MB. Se sube a Cloudinary automáticamente.</div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-semibold">Orden</label>
+          <input type="number" name="orden" class="form-control"
+                 value="{{ item.orden if item else 0 }}" min="0"
+                 placeholder="0 = primero">
+          <div class="form-text">Número menor = aparece antes.</div>
+        </div>
+        <div class="col-6 d-flex align-items-end pb-1">
+          <div class="form-check ms-2">
+            <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                   {{ 'checked' if not item or item.activo else '' }}>
+            <label class="form-check-label fw-semibold" for="activo">Visible en web</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary fw-bold">
+          💾 {{ 'Guardar cambios' if item else 'Añadir al portfolio' }}
+        </button>
+        <a href="{{ url_for('admin.portfolio_list') }}" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

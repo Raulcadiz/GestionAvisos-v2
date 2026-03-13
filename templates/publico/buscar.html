@@ -1,0 +1,227 @@
+{% extends 'publico/base_publica.html' %}
+{% block title %}{% if aparato_sel %}{{ aparato_sel }} — Guía y productos{% else %}Identificar electrodoméstico{% endif %} — ElectroBahía{% endblock %}
+{% block meta_desc %}{% if aparato_sel %}Guía de averías, vida útil y recomendaciones para {{ aparato_sel }}. ¿Reparar o cambiar?{% else %}Identifica tu electrodoméstico, conoce sus averías más comunes y compara modelos.{% endif %}{% endblock %}
+
+{% block head %}
+<style>
+  .buscar-hero {
+    background: linear-gradient(135deg, #0d1b3e, #1565c0);
+    color: #fff;
+    padding: 2.5rem 0 2rem;
+    text-align: center;
+  }
+
+  /* Grid de aparatos */
+  .aparato-btn {
+    border: 2px solid #e0e0e0;
+    border-radius: 14px;
+    background: #fff;
+    padding: 1rem .5rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all .2s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    height: 100%;
+  }
+  .aparato-btn:hover, .aparato-btn.activo {
+    border-color: #1565c0;
+    background: #e3f2fd;
+    color: #0d1b3e;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(21,101,192,.15);
+  }
+  .aparato-btn .ap-icon { font-size: 2.2rem; display: block; margin-bottom: .4rem; }
+  .aparato-btn .ap-name { font-size: .8rem; font-weight: 600; }
+
+  /* Ficha de info */
+  .decision-card {
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+  }
+  .problema-row:not(:last-child) { border-bottom: 1px solid #f0f0f0; }
+
+  /* Barra reparar/cambiar */
+  .decision-bar {
+    height: 8px;
+    border-radius: 50px;
+    background: #e0e0e0;
+    overflow: hidden;
+  }
+
+  /* Foto upload area */
+  .upload-zone {
+    border: 2px dashed #90caf9;
+    border-radius: 14px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: background .2s;
+    background: #f8f9fa;
+  }
+  .upload-zone:hover { background: #e3f2fd; border-color: #1565c0; }
+  .upload-zone.has-image { border-style: solid; border-color: #1565c0; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<div class="buscar-hero">
+  <div class="container">
+    <h1 class="h3 fw-bold mb-1">🔍 Identifica tu electrodoméstico</h1>
+    <p class="opacity-75 mb-0 small">Selecciona el aparato para ver averías frecuentes, vida útil y si conviene reparar o cambiar</p>
+  </div>
+</div>
+
+<div class="container py-4">
+
+  <!-- ── Grid de aparatos ── -->
+  <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.75rem;letter-spacing:.5px">
+    Selecciona el aparato
+  </h6>
+  <div class="row g-2 mb-4">
+    {% for nombre, datos in aparatos %}
+    <div class="col-4 col-sm-3 col-md-2">
+      <a href="{{ url_for('publico.buscar', aparato=nombre) }}"
+         class="aparato-btn {% if aparato_sel == nombre %}activo{% endif %}">
+        <span class="ap-icon">{{ datos.icono }}</span>
+        <span class="ap-name">{{ nombre }}</span>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if info %}
+  <!-- ── Ficha del aparato seleccionado ── -->
+  <div class="mb-3 d-flex align-items-center gap-2">
+    <span style="font-size:2rem">{{ info.icono }}</span>
+    <div>
+      <h2 class="h4 fw-bold mb-0">{{ aparato_sel }}</h2>
+      <span class="text-muted small">Vida útil estimada: <strong>{{ info.vida_util }}</strong></span>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+
+    <!-- ¿Reparar o cambiar? -->
+    <div class="col-md-6">
+      <div class="decision-card h-100" style="background:#e8f5e9;border:1px solid #a5d6a7">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span style="font-size:1.5rem">🔧</span>
+          <h6 class="fw-bold mb-0 text-success">Conviene reparar si…</h6>
+        </div>
+        <p class="mb-0 small">{{ info.reparar_si }}</p>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="decision-card h-100" style="background:#fff3e0;border:1px solid #ffcc80">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span style="font-size:1.5rem">🛒</span>
+          <h6 class="fw-bold mb-0" style="color:#e65100">Considera cambiarlo si…</h6>
+        </div>
+        <p class="mb-0 small">{{ info.cambiar_si }}</p>
+      </div>
+    </div>
+
+    <!-- Averías más frecuentes -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-body p-0">
+          <div class="p-3 border-bottom">
+            <h6 class="fw-bold mb-0">⚠️ Averías más frecuentes</h6>
+          </div>
+          {% for problema, causa in info.problemas %}
+          <div class="problema-row p-3 d-flex gap-3 align-items-start">
+            <span class="badge bg-warning text-dark mt-1" style="min-width:10px;height:10px;padding:5px;border-radius:50%"></span>
+            <div>
+              <div class="fw-semibold small">{{ problema }}</div>
+              <div class="text-muted" style="font-size:.82rem">{{ causa }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Consejo de consumo -->
+    <div class="col-12">
+      <div class="rounded-3 p-3 d-flex gap-3 align-items-center"
+           style="background:#e3f2fd;border-left:4px solid #1565c0">
+        <span style="font-size:1.5rem">💡</span>
+        <p class="mb-0 small"><strong>Ahorro energético:</strong> {{ info.consumo_tip }}</p>
+      </div>
+    </div>
+
+    <!-- Marcas recomendadas -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-3 h-100">
+        <div class="card-body p-3">
+          <h6 class="fw-bold mb-2">🏆 Marcas más fiables</h6>
+          <div class="d-flex flex-wrap gap-1">
+            {% for marca in info.marcas_recomendadas %}
+            <span class="badge border text-secondary bg-white px-2 py-1">{{ marca }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ver en Electrofactory -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-3 h-100"
+           style="background:linear-gradient(135deg,#0d1b3e,#1565c0);color:#fff">
+        <div class="card-body p-3 d-flex flex-column justify-content-between">
+          <div>
+            <h6 class="fw-bold mb-1 text-white">🛒 Ver modelos nuevos</h6>
+            <p class="mb-3 opacity-75 small">Compara precios y características en Electrofactory Cádiz</p>
+          </div>
+          <a href="https://www.tiendaselectrofactory.com/buscar?q={{ info.busqueda_electrofactory }}"
+             target="_blank" rel="noopener"
+             class="btn btn-warning btn-sm fw-bold w-100">
+            Ver {{ aparato_sel }}s en Electrofactory <i class="bi bi-box-arrow-up-right ms-1"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA solicitar -->
+  <div class="text-center p-4 rounded-3 mb-2" style="background:#f8f9fa;border:1px solid #dee2e6">
+    <h5 class="fw-bold mb-2">¿Tu {{ aparato_sel|lower }} tiene una avería?</h5>
+    <p class="text-muted mb-3 small">Cuéntanos qué pasa. Te damos presupuesto gratis y sin compromiso.</p>
+    <div class="d-flex gap-2 justify-content-center flex-wrap">
+      <a href="{{ url_for('publico.aviso_publico') }}?tipo=reparacion&aparato={{ aparato_sel }}"
+         class="btn btn-primary px-4">
+        <i class="bi bi-send me-2"></i>Solicitar reparación
+      </a>
+      <a href="https://wa.me/{{ config.WHATSAPP_NUMERO }}?text=Hola,%20tengo%20un%20problema%20con%20mi%20{{ aparato_sel|lower }}"
+         target="_blank" rel="noopener" class="btn btn-success px-4">
+        <i class="bi bi-whatsapp me-2"></i>WhatsApp
+      </a>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Estado inicial: sin aparato seleccionado -->
+  <div class="text-center py-4 text-muted">
+    <div style="font-size:3.5rem">👆</div>
+    <h5 class="mt-3 fw-bold">Elige un aparato arriba</h5>
+    <p class="small">Verás sus averías más frecuentes, vida útil y si conviene reparar o cambiar.</p>
+  </div>
+  {% endif %}
+
+  <!-- ── Zona de foto ── -->
+  <div class="mt-4 pt-3 border-top">
+    <h6 class="fw-bold mb-1">📸 ¿No sabes qué aparato es?</h6>
+    <p class="text-muted small mb-3">Envíanos la foto por WhatsApp y te identificamos el aparato y la avería en minutos.</p>
+    <a href="https://wa.me/{{ config.WHATSAPP_NUMERO }}?text=Hola,%20te%20mando%20una%20foto%20del%20electrodoméstico%20para%20que%20me%20ayudes"
+       target="_blank" rel="noopener"
+       class="btn btn-success">
+      <i class="bi bi-whatsapp me-2"></i>Enviar foto por WhatsApp
+    </a>
+  </div>
+
+</div>
+{% endblock %}

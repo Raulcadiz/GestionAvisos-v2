@@ -11,3 +11,11 @@ class Config:
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max por peticion
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'}
     ITEMS_PER_PAGE = 25
+
+    # Contacto público (pon tu número real en .env)
+    WHATSAPP_NUMERO = os.environ.get('WHATSAPP_NUMERO', '34600000000')
+
+    # Cloudinary (pon tus credenciales en .env)
+    CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '')
+    CLOUDINARY_API_KEY    = os.environ.get('CLOUDINARY_API_KEY', '')
+    CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '')

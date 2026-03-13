@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Portfolio público{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0 fw-bold">🖼️ Portfolio público</h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('publico.portfolio') }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-eye me-1"></i>Ver web
+    </a>
+    <a href="{{ url_for('admin.portfolio_nuevo') }}" class="btn btn-primary btn-sm fw-bold">
+      ➕ Añadir trabajo
+    </a>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+{% endwith %}
+
+{% if items %}
+<div class="row g-3">
+  {% for item in items %}
+  <div class="col-sm-6 col-lg-4">
+    <div class="card border-0 shadow-sm h-100 rounded-3 {% if not item.activo %}opacity-50{% endif %}">
+      {% if item.foto_url %}
+      <img src="{{ item.foto_url }}" class="card-img-top rounded-top-3"
+           style="height:180px;object-fit:cover" alt="{{ item.titulo }}">
+      {% else %}
+      <div class="d-flex align-items-center justify-content-center rounded-top-3"
+           style="height:100px;background:#e3f2fd;font-size:3rem">
+        {{ item.tipo_icon }}
+      </div>
+      {% endif %}
+      <div class="card-body p-3">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:.72rem">
+            {{ item.tipo_icon }} {{ item.tipo_label }}
+          </span>
+          {% if item.activo %}
+            <span class="badge bg-success-subtle text-success" style="font-size:.7rem">Visible</span>
+          {% else %}
+            <span class="badge bg-secondary-subtle text-secondary" style="font-size:.7rem">Oculto</span>
+          {% endif %}
+        </div>
+        <h6 class="fw-bold mb-1">{{ item.titulo }}</h6>
+        {% if item.descripcion %}
+          <p class="text-muted small mb-2" style="font-size:.82rem">{{ item.descripcion[:80] }}{% if item.descripcion|length > 80 %}…{% endif %}</p>
+        {% endif %}
+        <div class="d-flex gap-1 mt-auto">
+          <a href="{{ url_for('admin.portfolio_editar', id=item.id) }}"
+             class="btn btn-outline-primary btn-sm flex-fill">✏️ Editar</a>
+          <form method="POST" action="{{ url_for('admin.portfolio_toggle', id=item.id) }}">
+            <button class="btn btn-outline-secondary btn-sm" title="{{ 'Ocultar' if item.activo else 'Mostrar' }}">
+              {{ '🙈' if item.activo else '👁️' }}
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('admin.portfolio_borrar', id=item.id) }}"
+                onsubmit="return confirm('¿Eliminar este trabajo del portfolio?')">
+            <button class="btn btn-outline-danger btn-sm">🗑️</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <div style="font-size:3rem">🖼️</div>
+  <h5 class="mt-3">Portfolio vacío</h5>
+  <p>Añade fotos de tus trabajos para que los clientes los vean en la web.</p>
+  <a href="{{ url_for('admin.portfolio_nuevo') }}" class="btn btn-primary">➕ Añadir primer trabajo</a>
+</div>
+{% endif %}
+{% endblock %}

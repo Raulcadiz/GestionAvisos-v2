@@ -1,0 +1,36 @@
+{
+  "name": "ElectroBahía",
+  "short_name": "ElectroBahía",
+  "description": "Técnico de electrodomésticos en Cádiz",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1b3e",
+  "theme_color": "#1565c0",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Solicitar servicio",
+      "url": "/solicitar",
+      "description": "Enviar aviso de avería"
+    },
+    {
+      "name": "Ver trabajos",
+      "url": "/portfolio",
+      "description": "Portfolio de trabajos realizados"
+    }
+  ]
+}

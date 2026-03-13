@@ -275,3 +275,26 @@ class Photo(db.Model):
     original_name = db.Column(db.String(256))
     uploaded_at   = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_by   = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
+
+
+class Portfolio(db.Model):
+    """Trabajos realizados para mostrar en la web pública."""
+    __tablename__ = 'portfolio'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    titulo      = db.Column(db.String(150), nullable=False)
+    descripcion = db.Column(db.Text)
+    tipo        = db.Column(db.String(30), default='reparacion')  # reparacion|instalacion|reparto
+    foto_url    = db.Column(db.String(500))   # URL de Cloudinary
+    fecha       = db.Column(db.Date, default=date.today)
+    activo      = db.Column(db.Boolean, default=True)
+    orden       = db.Column(db.Integer, default=0)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def tipo_icon(self):
+        return {'reparacion': '🔧', 'instalacion': '⚡', 'reparto': '📦'}.get(self.tipo, '🔧')
+
+    @property
+    def tipo_label(self):
+        return {'reparacion': 'Reparación', 'instalacion': 'Instalación', 'reparto': 'Reparto'}.get(self.tipo, self.tipo)
