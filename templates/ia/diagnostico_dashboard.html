@@ -1,0 +1,245 @@
+{% extends 'base.html' %}
+{% block title %}Diagnóstico IA{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-7">
+
+    <div class="d-flex align-items-center gap-2 mb-4">
+      <span class="fs-2">🤖</span>
+      <div>
+        <h4 class="mb-0 fw-bold">Diagnóstico IA</h4>
+        <small class="text-muted">Análisis inteligente de averías · 100% local con Ollama</small>
+      </div>
+    </div>
+
+    <!-- Formulario -->
+    <div class="card shadow-sm mb-4" id="formCard">
+      <div class="card-body p-4">
+        <h6 class="fw-semibold mb-3">🔍 Datos de la avería</h6>
+
+        <form id="formDiagnostico" novalidate>
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-7">
+              <label class="form-label fw-semibold">Electrodoméstico <span class="text-danger">*</span></label>
+              <input type="text" id="electrodomestico" name="electrodomestico"
+                     class="form-control" placeholder="Lavadora, Frigorífico..."
+                     list="lista-electros" required>
+              <datalist id="lista-electros">
+                {% for e in electrodomesticos %}
+                  <option value="{{ e }}">
+                {% endfor %}
+              </datalist>
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label">Marca</label>
+              <input type="text" id="marca" name="marca" class="form-control"
+                     placeholder="Bosch, Balay...">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Descripción de la avería <span class="text-danger">*</span></label>
+            <textarea id="descripcion" name="descripcion" class="form-control" rows="3"
+                      placeholder="Ej: No centrifuga, vibra en el ciclo de centrifugado..."
+                      required></textarea>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Foto <span class="text-muted small">(opcional — activa visión IA)</span></label>
+            <input type="file" id="foto" name="foto" class="form-control" accept="image/*">
+            <div class="mt-2" id="fotoPreviewWrap" style="display:none">
+              <img id="foto-preview" src="" alt="Vista previa"
+                   style="max-height:140px; object-fit:cover; border-radius:8px;">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary fw-bold px-4">
+            🤖 Analizar con IA
+          </button>
+        </form>
+
+        <!-- Spinner -->
+        <div id="spinner" class="text-center py-4" style="display:none">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted small">Analizando con Ollama… puede tardar unos segundos</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resultado -->
+    <div id="resultado" style="display:none" class="mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">Resultado del diagnóstico</span>
+          <span id="res-modelo" class="text-muted" style="font-size:.7rem"></span>
+        </div>
+        <div class="card-body p-4">
+
+          <!-- Cabecera resultado -->
+          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+            <div>
+              <h5 class="fw-bold mb-1" id="res-averia">—</h5>
+              <span id="res-rec-badge" class="badge fs-6 px-3 py-2">—</span>
+            </div>
+            <div class="text-end">
+              <div class="fs-4 fw-bold text-primary" id="res-coste">—</div>
+              <div class="text-muted small">coste estimado</div>
+            </div>
+          </div>
+
+          <!-- Barra probabilidad -->
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <small class="fw-semibold text-muted">Probabilidad diagnóstico</small>
+              <small class="fw-bold" id="res-prob-pct">0%</small>
+            </div>
+            <div class="progress" style="height:8px; border-radius:4px">
+              <div id="res-prob-bar" class="progress-bar" style="width:0%"></div>
+            </div>
+          </div>
+
+          <!-- Repuesto -->
+          <div class="mb-3 p-3 bg-light rounded">
+            <div class="small text-muted mb-1">Repuesto recomendado</div>
+            <div class="fw-semibold" id="res-repuesto">—</div>
+          </div>
+
+          <!-- Pasos -->
+          <div class="mb-3">
+            <div class="small text-muted fw-semibold mb-2">Pasos a seguir</div>
+            <div id="res-pasos"></div>
+          </div>
+
+          <!-- Motivo -->
+          <div class="p-3 border-start border-primary border-3 bg-light rounded">
+            <small class="text-muted">Análisis IA</small>
+            <p class="mb-0 mt-1 small" id="res-motivo"></p>
+          </div>
+        </div>
+        <div class="card-footer bg-white text-end">
+          <button class="btn btn-sm btn-outline-secondary" id="btnNuevo">🔄 Nuevo análisis</button>
+          <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success ms-2">
+            ➕ Crear aviso
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="errorBox" class="alert alert-danger d-none" role="alert"></div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .paso-item { padding: .3rem 0; border-bottom: 1px solid #f0f0f0; }
+  .paso-item:last-child { border-bottom: none; }
+  .badge-rec-reparar { background: #198754; color: #fff; }
+  .badge-rec-cambiar { background: #dc3545; color: #fff; }
+</style>
+<script>
+(function () {
+  const form      = document.getElementById('formDiagnostico');
+  const formCard  = document.getElementById('formCard');
+  const spinner   = document.getElementById('spinner');
+  const resultado = document.getElementById('resultado');
+  const errorBox  = document.getElementById('errorBox');
+
+  document.getElementById('foto').addEventListener('change', function () {
+    const wrap = document.getElementById('fotoPreviewWrap');
+    const prev = document.getElementById('foto-preview');
+    if (this.files && this.files[0]) {
+      prev.src = URL.createObjectURL(this.files[0]);
+      wrap.style.display = '';
+    } else {
+      wrap.style.display = 'none';
+    }
+  });
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    form.style.display    = 'none';
+    spinner.style.display = '';
+    resultado.style.display = 'none';
+    errorBox.classList.add('d-none');
+
+    try {
+      const resp = await fetch('/ia/api/consulta', { method: 'POST', body: new FormData(form) });
+      const data = await resp.json();
+      spinner.style.display = 'none';
+
+      if (!resp.ok || data.error) {
+        errorBox.textContent = data.error || 'Error desconocido.';
+        errorBox.classList.remove('d-none');
+        form.style.display = '';
+        return;
+      }
+      mostrarResultado(data.resultado);
+
+    } catch (err) {
+      spinner.style.display = 'none';
+      errorBox.textContent = 'No se pudo conectar. ¿Está Ollama en marcha?';
+      errorBox.classList.remove('d-none');
+      form.style.display = '';
+    }
+  });
+
+  function mostrarResultado(r) {
+    document.getElementById('res-averia').textContent = r.averia;
+
+    const badge = document.getElementById('res-rec-badge');
+    if (r.recomendacion === 'reparar') {
+      badge.textContent = '✅ Recomendamos REPARAR';
+      badge.className   = 'badge fs-6 px-3 py-2 badge-rec-reparar';
+    } else {
+      badge.textContent = '🔄 Recomendamos CAMBIAR';
+      badge.className   = 'badge fs-6 px-3 py-2 badge-rec-cambiar';
+    }
+
+    document.getElementById('res-coste').textContent =
+      r.coste_min === r.coste_max ? `${r.coste_min}€` : `${r.coste_min}€ – ${r.coste_max}€`;
+
+    const pct = r.probabilidad;
+    document.getElementById('res-prob-pct').textContent = pct + '%';
+    const bar = document.getElementById('res-prob-bar');
+    bar.style.width = pct + '%';
+    bar.className = 'progress-bar ' + (pct >= 75 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-danger');
+
+    document.getElementById('res-repuesto').textContent = r.repuesto;
+
+    document.getElementById('res-pasos').innerHTML = r.pasos.map((p, i) =>
+      `<div class="paso-item d-flex gap-2 align-items-start">
+        <span class="badge bg-primary rounded-pill flex-shrink-0">${i + 1}</span>
+        <span class="small">${esc(p)}</span>
+      </div>`
+    ).join('');
+
+    document.getElementById('res-motivo').textContent = r.motivo;
+    document.getElementById('res-modelo').textContent = 'Modelo: ' + r.modelo_usado;
+
+    resultado.style.display = '';
+    formCard.style.display  = 'none';
+  }
+
+  document.getElementById('btnNuevo').addEventListener('click', function () {
+    resultado.style.display  = 'none';
+    formCard.style.display   = '';
+    form.style.display       = '';
+    spinner.style.display    = 'none';
+    errorBox.classList.add('d-none');
+    form.reset();
+    document.getElementById('fotoPreviewWrap').style.display = 'none';
+  });
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+})();
+</script>
+{% endblock %}

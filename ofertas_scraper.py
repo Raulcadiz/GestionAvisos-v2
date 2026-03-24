@@ -17,11 +17,11 @@ CACHE_HORAS = 6   # Actualizar máximo cada 6 horas
 _cache = {}       # { categoria: { 'ts': timestamp, 'items': [...] } }
 
 CATEGORIAS = {
-    'lavadoras':       '/categoria/lavadoras',
-    'frigorificos':    '/categoria/frigorificos',
-    'hornos':          '/categoria/hornos',
-    'lavavajillas':    '/categoria/lavavajillas',
-    'vitroceramicas':  '/categoria/vitroceramicas',
+    'lavadoras':       '/es/3253-LAVADORAS',
+    'frigorificos':    '/es/3252-FRIGORIFICOS',
+    'hornos':          '/es/3380-ENCASTRE',
+    'lavavajillas':    '/es/3254-LAVAVAJILLAS',
+    'vitroceramicas':  '/es/3380-ENCASTRE',
 }
 
 HEADERS = {

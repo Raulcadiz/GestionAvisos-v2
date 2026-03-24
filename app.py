@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
-from datetime import datetime
 from flask import Flask
 from config import Config
 from extensions import db, login_manager
@@ -11,11 +10,6 @@ from extensions import db, login_manager
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-
-    @app.context_processor
-    def inject_globals():
-        """Inyecta variables útiles en todos los templates."""
-        return {'config': app.config, 'now': datetime.utcnow()}
 
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(os.path.join(os.path.dirname(__file__), 'instance'), exist_ok=True)
@@ -33,27 +27,28 @@ def create_app(config_class=Config):
         return User.query.get(int(user_id))
 
     # Registrar blueprints
-    # publico_bp primero para que '/' resuelva a la landing pública
-    from publico import publico_bp
     from auth import auth_bp
     from dashboard import dashboard_bp
     from avisos import avisos_bp
     from exports import exports_bp
+    from publico import publico_bp
     from admin import admin_bp
     from estadisticas import estadisticas_bp
     from calendario import calendario_bp
+    from ia_diagnostico import ia_bp
 
-    app.register_blueprint(publico_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(avisos_bp)
     app.register_blueprint(exports_bp)
+    app.register_blueprint(publico_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(estadisticas_bp)
     app.register_blueprint(calendario_bp)
+    app.register_blueprint(ia_bp)
 
     with app.app_context():
-        from models import User, Aviso, Photo, Portfolio  # noqa: F401
+        from models import User, Aviso, Photo  # noqa: F401
         db.create_all()
         _migrar_columnas()
         _seed_default_users()

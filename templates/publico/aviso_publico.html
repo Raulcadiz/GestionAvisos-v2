@@ -1,139 +1,121 @@
-{% extends 'publico/base_publica.html' %}
-{% block title %}Solicitar servicio — ElectroBahía Cádiz{% endblock %}
-{% block meta_desc %}Solicita reparación, instalación o reparto de electrodomésticos en Cádiz. Formulario rápido, te llamamos enseguida.{% endblock %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitar Reparación</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body { background: #f8f9fa; }
+    .logo-area { background: #0d6efd; color: white; padding: 1.5rem; text-align: center; }
+    .card { border-radius: 12px; }
+  </style>
+</head>
+<body>
 
-{% block content %}
-<div style="background:linear-gradient(135deg,#0d1b3e,#1565c0);color:#fff;padding:2.5rem 0;text-align:center">
-  <div class="container">
-    <h1 class="h3 fw-bold mb-1">Solicitar servicio</h1>
-    <p class="mb-0 opacity-75 small">Déjanos tus datos y te contactamos lo antes posible</p>
+  <div class="logo-area mb-4">
+    <h1 class="h3 mb-0">🔧 Solicitar Reparación</h1>
+    <p class="mb-0 opacity-75 small">Déjenos sus datos y le contactaremos lo antes posible</p>
   </div>
-</div>
 
-<div class="container py-4" style="max-width:580px">
+  <div class="container" style="max-width:540px">
 
-  {% if enviado %}
-  <!-- Confirmación -->
-  <div class="card border-0 shadow-sm text-center p-4 mt-3 rounded-4">
-    <div style="font-size:4rem">✅</div>
-    <h2 class="h4 mt-3 fw-bold">¡Aviso recibido!</h2>
-    <p class="text-muted">Hemos registrado tu solicitud. Nos pondremos en contacto contigo lo antes posible.</p>
-    <div class="d-flex gap-2 justify-content-center mt-3 flex-wrap">
-      <a href="{{ url_for('publico.aviso_publico') }}" class="btn btn-outline-primary">
-        <i class="bi bi-plus-circle me-1"></i>Enviar otro aviso
-      </a>
-      <a href="https://wa.me/{{ config.WHATSAPP_NUMERO }}?text=Hola,%20acabo%20de%20enviar%20un%20aviso%20web"
-         target="_blank" rel="noopener" class="btn btn-success">
-        <i class="bi bi-whatsapp me-1"></i>WhatsApp
-      </a>
+    {% if enviado %}
+    <!-- Confirmación -->
+    <div class="card shadow text-center p-4">
+      <div style="font-size:4rem">✅</div>
+      <h2 class="h4 mt-3">¡Aviso recibido!</h2>
+      <p class="text-muted">Hemos registrado su solicitud. Nos pondremos en contacto con usted a la mayor brevedad.</p>
+      <p class="small text-muted">Puede cerrar esta página.</p>
+      <a href="{{ url_for('publico.aviso_publico') }}" class="btn btn-outline-primary mt-2">Enviar otro aviso</a>
     </div>
-  </div>
 
-  {% else %}
+    {% else %}
+    <!-- Mensajes de error -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+          {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endwith %}
 
-  <!-- Mensajes de error -->
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for cat, msg in messages %}
-      <div class="alert alert-{{ cat }} alert-dismissible fade show mt-3 rounded-3" role="alert">
-        {{ msg }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
-    {% endfor %}
-  {% endwith %}
+    <!-- Formulario -->
+    <div class="card shadow p-4 mb-5">
+      <form method="POST" action="{{ url_for('publico.aviso_publico') }}" novalidate>
 
-  <!-- Formulario -->
-  <div class="card border-0 shadow-sm p-4 mt-3 mb-5 rounded-4">
-    <form method="POST" action="{{ url_for('publico.aviso_publico') }}" novalidate>
+        <h5 class="mb-3 fw-semibold">👤 Sus datos</h5>
 
-      <h5 class="mb-3 fw-bold"><i class="bi bi-person-circle me-2 text-primary"></i>Tus datos</h5>
+        <div class="mb-3">
+          <label class="form-label">Nombre completo <span class="text-danger">*</span></label>
+          <input type="text" name="nombre_cliente" class="form-control form-control-lg"
+                 value="{{ form_data.get('nombre_cliente', '') }}"
+                 placeholder="María García López" required autofocus>
+        </div>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Nombre completo <span class="text-danger">*</span></label>
-        <input type="text" name="nombre_cliente" class="form-control form-control-lg"
-               value="{{ form_data.get('nombre_cliente', '') }}"
-               placeholder="María García López" required autofocus>
-      </div>
+        <div class="mb-3">
+          <label class="form-label">Teléfono <span class="text-danger">*</span></label>
+          <input type="tel" name="telefono" class="form-control form-control-lg"
+                 value="{{ form_data.get('telefono', '') }}"
+                 placeholder="600 000 000" required>
+        </div>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Teléfono <span class="text-danger">*</span></label>
-        <input type="tel" name="telefono" class="form-control form-control-lg"
-               value="{{ form_data.get('telefono', '') }}"
-               placeholder="600 000 000" required>
-      </div>
-
-      <div class="row g-2 mb-4">
-        <div class="col-8">
-          <label class="form-label fw-semibold">Dirección</label>
+        <div class="mb-3">
+          <label class="form-label">Dirección (opcional)</label>
           <input type="text" name="calle" class="form-control"
                  value="{{ form_data.get('calle', '') }}"
                  placeholder="Calle, número, piso...">
         </div>
-        <div class="col-4">
-          <label class="form-label fw-semibold">Localidad</label>
+
+        <div class="mb-4">
+          <label class="form-label">Localidad (opcional)</label>
           <input type="text" name="localidad" class="form-control"
                  value="{{ form_data.get('localidad', '') }}"
-                 placeholder="Cádiz...">
+                 placeholder="Cádiz, San Fernando, Chiclana...">
         </div>
-      </div>
 
-      <hr class="my-3">
-      <h5 class="mb-3 fw-bold"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>¿Qué necesitas?</h5>
+        <hr>
+        <h5 class="mb-3 fw-semibold">🔧 Electrodoméstico</h5>
 
-      <div class="mb-4">
-        <div class="row g-2" id="tipo-selector">
-          {% for val, label, icon in [('reparacion','Reparación','🔧'), ('instalacion','Instalación','⚡'), ('reparto','Reparto','📦')] %}
-          <div class="col-4">
-            <input type="radio" class="btn-check" name="tipo_servicio" id="tipo_{{ val }}"
-                   value="{{ val }}" {% if loop.first %}checked{% endif %} autocomplete="off">
-            <label class="btn btn-outline-primary w-100 text-center py-2" for="tipo_{{ val }}"
-                   style="font-size:.88rem;border-radius:10px">
-              <div style="font-size:1.5rem">{{ icon }}</div>
-              {{ label }}
-            </label>
-          </div>
-          {% endfor %}
+        <div class="mb-3">
+          <label class="form-label">¿Qué electrodoméstico tiene avería?</label>
+          <input type="text" name="electrodomestico" class="form-control form-control-lg"
+                 value="{{ form_data.get('electrodomestico', '') }}"
+                 placeholder="Lavadora, Frigorífico, Lavavajillas..."
+                 list="lista-electros">
+          <datalist id="lista-electros">
+            {% for e in electrodomesticos %}
+              <option value="{{ e }}">
+            {% endfor %}
+          </datalist>
         </div>
-      </div>
 
-      <hr class="my-3">
-      <h5 class="mb-3 fw-bold"><i class="bi bi-tools me-2 text-primary"></i>El electrodoméstico</h5>
+        <div class="mb-3">
+          <label class="form-label">Marca (opcional)</label>
+          <input type="text" name="marca" class="form-control"
+                 value="{{ form_data.get('marca', '') }}"
+                 placeholder="Bosch, Samsung, Balay...">
+        </div>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold">¿Qué aparato tiene el problema?</label>
-        <input type="text" name="electrodomestico" class="form-control form-control-lg"
-               value="{{ form_data.get('electrodomestico', '') }}"
-               placeholder="Lavadora, Frigorífico, Horno..."
-               list="lista-electros">
-        <datalist id="lista-electros">
-          {% for e in electrodomesticos %}
-            <option value="{{ e }}">
-          {% endfor %}
-        </datalist>
-      </div>
+        <div class="mb-4">
+          <label class="form-label">Describa la avería</label>
+          <textarea name="descripcion" class="form-control" rows="4"
+                    placeholder="Cuéntenos qué ocurre: no enciende, hace ruido, pierde agua...">{{ form_data.get('descripcion', '') }}</textarea>
+        </div>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Marca</label>
-        <input type="text" name="marca" class="form-control"
-               value="{{ form_data.get('marca', '') }}"
-               placeholder="Bosch, Samsung, Balay...">
-      </div>
+        <button type="submit" class="btn btn-primary btn-lg w-100">
+          📨 Enviar solicitud
+        </button>
+        <p class="text-muted small text-center mt-3 mb-0">
+          Sus datos se usarán únicamente para gestionar su reparación.
+        </p>
+      </form>
+    </div>
+    {% endif %}
 
-      <div class="mb-4">
-        <label class="form-label fw-semibold">Describe el problema</label>
-        <textarea name="descripcion" class="form-control" rows="4"
-                  placeholder="Cuéntanos qué ocurre: no enciende, hace ruido, pierde agua, no calienta...">{{ form_data.get('descripcion', '') }}</textarea>
-      </div>
-
-      <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">
-        <i class="bi bi-send-fill me-2"></i>Enviar solicitud
-      </button>
-      <p class="text-muted small text-center mt-3 mb-0">
-        <i class="bi bi-shield-lock me-1"></i>
-        Tus datos se usan únicamente para gestionar tu solicitud.
-      </p>
-    </form>
   </div>
-  {% endif %}
 
-</div>
-{% endblock %}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

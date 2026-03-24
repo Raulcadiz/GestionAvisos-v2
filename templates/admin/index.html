@@ -11,14 +11,10 @@
     <small class="text-muted">Solo ves los usuarios que tú has creado</small>
     {% endif %}
   </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <a href="{{ url_for('admin.portfolio_list') }}" class="btn btn-outline-primary">
-      🖼️ Portfolio web
-    </a>
-    <a href="{{ url_for('admin.nuevo_tecnico') }}" class="btn btn-success">
-      ➕ Nuevo usuario
-    </a>
-  </div>
+  <a href="{{ url_for('admin.nuevo_tecnico') }}" class="btn btn-success">
+    ➕ Nuevo usuario
+  </a>
+</div>
 
 {% if not usuarios %}
 <div class="alert alert-info">

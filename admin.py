@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy import func
 from extensions import db
-from models import User, Aviso, Portfolio, TIPOS_SERVICIO
+from models import User, Aviso
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -173,96 +173,6 @@ def toggle_tecnico(id):
     estado = 'activado' if tecnico.is_active else 'desactivado'
     flash(f'Usuario "{tecnico.username}" {estado}.', 'info')
     return redirect(url_for('admin.index'))
-
-
-# ── Portfolio público ────────────────────────────────────────────────────────
-
-@admin_bp.route('/portfolio')
-@login_required
-@admin_required
-def portfolio_list():
-    items = Portfolio.query.order_by(Portfolio.orden.asc(), Portfolio.fecha.desc()).all()
-    return render_template('admin/portfolio.html', items=items, tipos=TIPOS_SERVICIO)
-
-
-@admin_bp.route('/portfolio/nuevo', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def portfolio_nuevo():
-    if request.method == 'POST':
-        foto_url = ''
-        archivo = request.files.get('foto')
-        if archivo and archivo.filename:
-            try:
-                from cloudinary_helper import subir_imagen
-                foto_url = subir_imagen(archivo, carpeta='portfolio')
-            except Exception as e:
-                flash(f'Error al subir la imagen: {e}', 'warning')
-
-        item = Portfolio(
-            titulo=request.form.get('titulo', '').strip(),
-            descripcion=request.form.get('descripcion', '').strip() or None,
-            tipo=request.form.get('tipo', 'reparacion'),
-            foto_url=foto_url,
-            orden=int(request.form.get('orden', 0) or 0),
-            activo=bool(request.form.get('activo')),
-        )
-        db.session.add(item)
-        db.session.commit()
-        flash('Trabajo añadido al portfolio.', 'success')
-        return redirect(url_for('admin.portfolio_list'))
-
-    return render_template('admin/portfolio_form.html', item=None, tipos=TIPOS_SERVICIO)
-
-
-@admin_bp.route('/portfolio/<int:id>/editar', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def portfolio_editar(id):
-    item = Portfolio.query.get_or_404(id)
-
-    if request.method == 'POST':
-        archivo = request.files.get('foto')
-        if archivo and archivo.filename:
-            try:
-                from cloudinary_helper import subir_imagen
-                item.foto_url = subir_imagen(archivo, carpeta='portfolio')
-            except Exception as e:
-                flash(f'Error al subir la imagen: {e}', 'warning')
-
-        item.titulo      = request.form.get('titulo', '').strip()
-        item.descripcion = request.form.get('descripcion', '').strip() or None
-        item.tipo        = request.form.get('tipo', item.tipo)
-        item.orden       = int(request.form.get('orden', 0) or 0)
-        item.activo      = bool(request.form.get('activo'))
-        db.session.commit()
-        flash('Portfolio actualizado.', 'success')
-        return redirect(url_for('admin.portfolio_list'))
-
-    return render_template('admin/portfolio_form.html', item=item, tipos=TIPOS_SERVICIO)
-
-
-@admin_bp.route('/portfolio/<int:id>/toggle', methods=['POST'])
-@login_required
-@admin_required
-def portfolio_toggle(id):
-    item = Portfolio.query.get_or_404(id)
-    item.activo = not item.activo
-    db.session.commit()
-    estado = 'visible' if item.activo else 'oculto'
-    flash(f'Trabajo "{item.titulo}" ahora {estado}.', 'info')
-    return redirect(url_for('admin.portfolio_list'))
-
-
-@admin_bp.route('/portfolio/<int:id>/borrar', methods=['POST'])
-@login_required
-@admin_required
-def portfolio_borrar(id):
-    item = Portfolio.query.get_or_404(id)
-    db.session.delete(item)
-    db.session.commit()
-    flash('Trabajo eliminado del portfolio.', 'info')
-    return redirect(url_for('admin.portfolio_list'))
 
 
 # Mantener ruta antigua por compatibilidad con links existentes
