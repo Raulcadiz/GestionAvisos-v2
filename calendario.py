@@ -122,3 +122,27 @@ def api_eventos():
         })
 
     return jsonify(eventos)
+
+
+@calendario_bp.route('/api/eventos/<int:id>/reschedule', methods=['PATCH'])
+@login_required
+def reschedule_evento(id):
+    """
+    Actualiza la fecha_cita de un aviso vía drag-and-drop del calendario.
+    Body JSON: { "fecha_cita": "YYYY-MM-DD" }
+    """
+    aviso = Aviso.query.get_or_404(id)
+
+    if not aviso.puede_editar(current_user):
+        return jsonify({'error': 'Sin permiso para editar este aviso.'}), 403
+
+    data = request.get_json(silent=True) or {}
+    fecha_str = data.get('fecha_cita', '')
+
+    try:
+        from datetime import date as date_type
+        aviso.fecha_cita = date_type.fromisoformat(fecha_str[:10])
+        db.session.commit()
+        return jsonify({'ok': True, 'fecha_cita': aviso.fecha_cita.isoformat()})
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': f'Fecha inválida: {exc}'}), 400

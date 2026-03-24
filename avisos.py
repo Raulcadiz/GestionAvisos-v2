@@ -266,7 +266,8 @@ def create():
                            tipos_servicio=TIPOS_SERVICIO,
                            origenes=ORIGENES,
                            tecnicos=_get_tecnicos_asignables(),
-                           admins=_get_admins())
+                           admins=_get_admins(),
+                           prefill_fecha_cita=request.args.get('fecha_cita', ''))
 
 
 # ── Editar ─────────────────────────────────────────────────────────────────
@@ -384,6 +385,13 @@ def change_estado(id):
         aviso.estado = nuevo_estado
         db.session.commit()
         notificar_cambio_estado(aviso, estado_anterior)
+        # Notificación WhatsApp al cliente (no bloquea si falla)
+        try:
+            from publico import url_seguimiento
+            from whatsapp_bot import notificar_estado_whatsapp
+            notificar_estado_whatsapp(aviso, estado_anterior, url_seguimiento(aviso.id))
+        except Exception:
+            pass
         return jsonify({'ok': True, 'estado': aviso.estado,
                         'estado_label': aviso.estado_label(),
                         'estado_class': aviso.estado_badge_class()})

@@ -169,8 +169,12 @@
     resultado.style.display = 'none';
     errorBox.classList.add('d-none');
 
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 120000);
+
     try {
-      const resp = await fetch('/ia/api/consulta', { method: 'POST', body: new FormData(form) });
+      const resp = await fetch('/ia/api/consulta', { method: 'POST', body: new FormData(form), signal: ctrl.signal });
+      clearTimeout(timer);
       const data = await resp.json();
       spinner.style.display = 'none';
 
@@ -183,10 +187,13 @@
       mostrarResultado(data.resultado);
 
     } catch (err) {
+      clearTimeout(timer);
       spinner.style.display = 'none';
-      errorBox.textContent = 'No se pudo conectar. ¿Está Ollama en marcha?';
-      errorBox.classList.remove('d-none');
       form.style.display = '';
+      errorBox.textContent = err.name === 'AbortError'
+        ? 'La IA tardó demasiado (>2 min). Prueba con un modelo más rápido o comprueba Ollama.'
+        : 'No se pudo conectar. ¿Está Ollama en marcha?';
+      errorBox.classList.remove('d-none');
     }
   });
 

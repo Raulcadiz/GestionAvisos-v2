@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estado de tu reparación — ElectroBahía</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body { background: #f0f4ff; }
+    .eb-header {
+      background: linear-gradient(135deg, #0a1628 0%, #0d6efd 100%);
+      color: white; padding: 2rem 1rem; text-align: center;
+    }
+    .card { border-radius: 14px; border: none; }
+    .timeline-item { display: flex; gap: 1rem; align-items: flex-start; padding: .6rem 0; }
+    .timeline-dot {
+      width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
+      border: 2px solid #dee2e6;
+    }
+    .timeline-dot.active { border-color: transparent; }
+    .timeline-dot.done { background: #198754; border-color: #198754; }
+    .timeline-dot.current { background: #0d6efd; border-color: #0d6efd;
+      box-shadow: 0 0 0 4px rgba(13,110,253,.25); }
+    .timeline-dot.pending { background: #e9ecef; }
+  </style>
+</head>
+<body>
+
+<div class="eb-header">
+  <div class="fs-1 mb-1">🔍</div>
+  <h1 class="h3 fw-bold mb-1">Estado de tu reparación</h1>
+  <small class="opacity-75">ElectroBahía · Servicio técnico Bahía de Cádiz</small>
+</div>
+
+<div class="container py-4" style="max-width:560px">
+
+  {% if error %}
+  <div class="alert alert-danger text-center">
+    <div class="fs-2 mb-2">⚠️</div>
+    <strong>{{ error }}</strong>
+    <div class="mt-3">
+      <a href="{{ url_for('publico.seguimiento_buscar') }}" class="btn btn-outline-danger btn-sm">Intentar de nuevo</a>
+      <a href="{{ url_for('publico.aviso_publico') }}" class="btn btn-outline-secondary btn-sm ms-2">Solicitar reparación</a>
+    </div>
+  </div>
+
+  {% else %}
+
+  <!-- Cabecera aviso -->
+  <div class="card shadow-sm p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <div class="text-muted small mb-1">Aviso #{{ aviso.id }}</div>
+        <h5 class="fw-bold mb-1">{{ aviso.electrodomestico or 'Electrodoméstico' }}{% if aviso.marca %} · {{ aviso.marca }}{% endif %}</h5>
+        <span class="badge {{ aviso.estado_badge_class() }} fs-6 px-3 py-2">
+          {{ aviso.estado_label() }}
+        </span>
+      </div>
+      <div class="text-end">
+        <div class="text-muted small">Fecha solicitud</div>
+        <div class="fw-semibold">{{ aviso.fecha_aviso.strftime('%d/%m/%Y') }}</div>
+        {% if aviso.fecha_cita %}
+        <div class="text-muted small mt-1">Cita programada</div>
+        <div class="fw-bold text-primary">🗓️ {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensaje según estado -->
+  <div class="card shadow-sm p-4 mb-3 text-center
+    {% if aviso.estado == 'finalizado' %}border-success border-2
+    {% elif aviso.estado == 'hoy' %}border-danger border-2
+    {% else %}border-primary border-2{% endif %}">
+
+    {% if aviso.estado == 'pendiente' %}
+    <div class="fs-1 mb-2">⏳</div>
+    <h5 class="fw-bold">Solicitud recibida</h5>
+    <p class="text-muted mb-0">Hemos recibido tu solicitud y estamos preparando la visita. Te contactaremos pronto para confirmar fecha y hora.</p>
+
+    {% elif aviso.estado == 'hoy' %}
+    <div class="fs-1 mb-2">📅</div>
+    <h5 class="fw-bold text-danger">¡Tu técnico va hoy!</h5>
+    <p class="text-muted mb-0">El técnico está programado para visitarte hoy. Por favor, asegúrate de estar disponible en el domicilio.</p>
+
+    {% elif aviso.estado == 'esperando_material' %}
+    <div class="fs-1 mb-2">📦</div>
+    <h5 class="fw-bold text-info">Esperando material</h5>
+    <p class="text-muted mb-0">Hemos diagnosticado la avería y estamos a la espera de que llegue el repuesto necesario. Te avisaremos cuando tengamos la pieza.</p>
+
+    {% elif aviso.estado == 'segunda_visita' %}
+    <div class="fs-1 mb-2">🔁</div>
+    <h5 class="fw-bold text-primary">Segunda visita programada</h5>
+    <p class="text-muted mb-0">Necesitamos realizar una segunda visita para completar la reparación. Te contactaremos para confirmar la fecha.</p>
+
+    {% elif aviso.estado == 'finalizado' %}
+    <div class="fs-1 mb-2">🎉</div>
+    <h5 class="fw-bold text-success">¡Reparación completada!</h5>
+    <p class="text-muted mb-0">Tu electrodoméstico ha sido reparado correctamente. Recuerda que tienes garantía mínima de 3 meses en la reparación.</p>
+
+    {% else %}
+    <div class="fs-1 mb-2">🔧</div>
+    <h5 class="fw-bold">En proceso</h5>
+    <p class="text-muted mb-0">Tu solicitud está siendo gestionada por nuestro equipo técnico.</p>
+    {% endif %}
+  </div>
+
+  <!-- Timeline de estados -->
+  <div class="card shadow-sm p-4 mb-3">
+    <h6 class="fw-semibold mb-3">📋 Progreso de tu reparación</h6>
+    {% set orden_estados = ['pendiente', 'hoy', 'esperando_material', 'segunda_visita', 'finalizado'] %}
+    {% set idx_actual = orden_estados.index(aviso.estado) if aviso.estado in orden_estados else 0 %}
+    {% for est in orden_estados %}
+    {% set idx = loop.index0 %}
+    <div class="timeline-item">
+      <div class="timeline-dot
+        {% if idx < idx_actual %}done
+        {% elif idx == idx_actual %}current
+        {% else %}pending{% endif %} active">
+      </div>
+      <div>
+        <div class="fw-semibold small
+          {% if idx == idx_actual %}text-primary
+          {% elif idx < idx_actual %}text-success
+          {% else %}text-muted{% endif %}">
+          {% if est == 'pendiente' %}⏳ Solicitud recibida
+          {% elif est == 'hoy' %}📅 Visita programada
+          {% elif est == 'esperando_material' %}📦 Esperando repuesto
+          {% elif est == 'segunda_visita' %}🔁 Segunda visita
+          {% elif est == 'finalizado' %}✅ Reparación completada
+          {% endif %}
+        </div>
+        {% if idx == idx_actual %}
+        <div class="small text-primary">← Estado actual</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if not loop.last %}
+    <div style="margin-left:8px;border-left:2px dashed #dee2e6;height:12px;"></div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Info técnico asignado (solo nombre, sin datos personales) -->
+  {% if aviso.tecnico %}
+  <div class="card shadow-sm p-3 mb-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-circle bg-success d-flex align-items-center justify-content-center text-white fw-bold"
+           style="width:42px;height:42px;font-size:1.1rem;flex-shrink:0">
+        {{ aviso.tecnico.display_name[:1].upper() }}
+      </div>
+      <div>
+        <div class="small text-muted">Técnico asignado</div>
+        <div class="fw-semibold">{{ aviso.tecnico.display_name }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+  <!-- Links -->
+  <div class="d-flex justify-content-center gap-3 flex-wrap mt-3 pb-4" style="font-size:.85rem">
+    <a href="{{ url_for('publico.aviso_publico') }}" class="text-decoration-none">🔧 Nueva solicitud</a>
+    <span class="text-muted">·</span>
+    <a href="{{ url_for('ia.diagnostico_publico') }}" class="text-decoration-none">🤖 Diagnóstico IA</a>
+    <span class="text-muted">·</span>
+    <a href="/" class="text-decoration-none text-muted">Inicio</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

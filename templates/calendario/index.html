@@ -25,19 +25,27 @@
     <div class="btn-group btn-group-sm" role="group" id="vista-btns">
       <button class="btn btn-outline-secondary active" data-view="dayGridMonth">Mes</button>
       <button class="btn btn-outline-secondary" data-view="timeGridWeek">Semana</button>
+      <button class="btn btn-outline-secondary" data-view="timeGridDay">Día</button>
       <button class="btn btn-outline-secondary" data-view="listWeek">Lista</button>
     </div>
+
+    {% if current_user.es_admin_o_superior %}
+    <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success fw-semibold">➕ Nuevo aviso</a>
+    {% endif %}
   </div>
 </div>
 
 <!-- Leyenda estados -->
-<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+<div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
   <span class="small text-muted fw-semibold me-1">Estado:</span>
   <span class="badge rounded-pill px-3 py-2" style="background:#ffc107;color:#000">⏳ Pendiente</span>
   <span class="badge rounded-pill px-3 py-2 bg-danger">🔴 Hoy</span>
   <span class="badge rounded-pill px-3 py-2" style="background:#0dcaf0;color:#000">📦 Esp. material</span>
   <span class="badge rounded-pill px-3 py-2 bg-primary">🔁 2ª visita</span>
   <span class="badge rounded-pill px-3 py-2" style="background:#adb5bd;color:#000">✅ Finalizado</span>
+  {% if current_user.es_admin_o_superior %}
+  <span class="text-muted small ms-2">· Arrastra para cambiar fecha</span>
+  {% endif %}
 </div>
 
 <!-- Leyenda técnicos (solo admin con técnicos) -->
@@ -80,6 +88,16 @@
     </div>
   </div>
 </div>
+
+<!-- Toast feedback drag-drop -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+  <div id="toastDrag" class="toast align-items-center text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body fw-semibold" id="toastDragMsg">Cita actualizada</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -91,8 +109,13 @@ document.addEventListener('DOMContentLoaded', function () {
   const modal         = new bootstrap.Modal(document.getElementById('modalEvento'));
   const filtroTecnico = document.getElementById('filtro-tecnico');
   const filtroTipo    = document.getElementById('filtro-tipo');
+  const toastEl       = document.getElementById('toastDrag');
+  const toastMsg      = document.getElementById('toastDragMsg');
+  const bsToast       = new bootstrap.Toast(toastEl, { delay: 3000 });
 
-  // Mapa de colores por técnico (coincide con la leyenda Jinja)
+  const PUEDE_EDITAR = {{ 'true' if current_user.es_admin_o_superior else 'false' }};
+
+  // Mapa de colores por técnico
   const COLORES_TECNICOS = [
     '#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'
   ];
@@ -110,6 +133,12 @@ document.addEventListener('DOMContentLoaded', function () {
     return url;
   }
 
+  function mostrarToast(msg, ok) {
+    toastMsg.textContent = msg;
+    toastEl.className = `toast align-items-center text-white border-0 ${ok ? 'bg-success' : 'bg-danger'}`;
+    bsToast.show();
+  }
+
   const cal = new FullCalendar.Calendar(calEl, {
     locale: 'es',
     initialView: 'dayGridMonth',
@@ -118,12 +147,21 @@ document.addEventListener('DOMContentLoaded', function () {
     eventDisplay: 'block',
     nowIndicator: true,
 
+    // ── Drag & drop ────────────────────────────────────────────────
+    editable: PUEDE_EDITAR,
+    droppable: false,
+
     headerToolbar: {
       left:   'prev,next today',
       center: 'title',
       right:  false,
     },
     buttonText: { today: 'Hoy' },
+
+    views: {
+      timeGridWeek: { titleFormat: { month: 'short', day: 'numeric' } },
+      timeGridDay:  { titleFormat: { weekday: 'long', day: 'numeric', month: 'long' } },
+    },
 
     events: function (fetchInfo, success, failure) {
       fetch(buildUrl(fetchInfo))
@@ -132,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(err => failure(err));
     },
 
-    // Contenido del evento: icono servicio + calle + técnico
+    // Contenido del evento
     eventContent: function(arg) {
       const props = arg.event.extendedProps;
       const tecnico = props.tecnico || '';
@@ -144,6 +182,7 @@ document.addEventListener('DOMContentLoaded', function () {
       };
     },
 
+    // ── Click en evento → modal detalle ────────────────────────────
     eventClick: function (info) {
       info.jsEvent.preventDefault();
       const ev    = info.event;
@@ -152,7 +191,6 @@ document.addEventListener('DOMContentLoaded', function () {
         weekday: 'long', day: 'numeric', month: 'long'
       });
 
-      // Header con color del estado
       const header = document.getElementById('modalHeader');
       header.style.background = ev.backgroundColor;
       header.style.color = ev.textColor || '#000';
@@ -168,12 +206,10 @@ document.addEventListener('DOMContentLoaded', function () {
         subtitulo.style.display = 'none';
       }
 
-      let estadoBadge = `<span class="badge bg-secondary">${props.estado}</span>`;
-
       let html = `<table class="table table-sm mb-0 small">
         <tr><th class="text-muted pe-2" style="width:36%">📅 Fecha</th><td class="fw-semibold">${fecha}</td></tr>
         <tr><th class="text-muted">${props.tipo_icon} Tipo</th><td>${props.tipo_servicio}</td></tr>
-        <tr><th class="text-muted">📋 Estado</th><td>${estadoBadge}</td></tr>`;
+        <tr><th class="text-muted">📋 Estado</th><td><span class="badge bg-secondary">${props.estado}</span></td></tr>`;
       if (props.localidad)
         html += `<tr><th class="text-muted">🏙️ Localidad</th><td>${props.localidad}</td></tr>`;
       if (props.electrodomestico)
@@ -189,6 +225,41 @@ document.addEventListener('DOMContentLoaded', function () {
       document.getElementById('modalCuerpo').innerHTML = html;
       document.getElementById('modalEnlace').href = ev.url;
       modal.show();
+    },
+
+    // ── Drag & drop → rescheduling ──────────────────────────────────
+    eventDrop: function (info) {
+      const avisoId  = info.event.id;
+      const nuevaFecha = info.event.start.toISOString().slice(0, 10);
+
+      fetch(`/calendario/api/eventos/${avisoId}/reschedule`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha_cita: nuevaFecha }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          const fechaLeg = new Date(nuevaFecha + 'T12:00:00').toLocaleDateString('es-ES', {
+            weekday: 'long', day: 'numeric', month: 'long'
+          });
+          mostrarToast(`✅ Cita movida al ${fechaLeg}`, true);
+        } else {
+          info.revert();
+          mostrarToast('❌ ' + (data.error || 'No se pudo actualizar'), false);
+        }
+      })
+      .catch(() => {
+        info.revert();
+        mostrarToast('❌ Error de red al guardar', false);
+      });
+    },
+
+    // ── Click en día vacío → crear aviso con fecha pre-rellena ──────
+    dateClick: function (info) {
+      if (!PUEDE_EDITAR) return;
+      const fecha = info.dateStr.slice(0, 10);
+      window.location.href = `/avisos/nuevo?fecha_cita=${fecha}`;
     },
 
     dayMaxEvents: 5,
@@ -229,16 +300,18 @@ document.addEventListener('DOMContentLoaded', function () {
   border-radius: 5px;
   border: none !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.18);
-  transition: box-shadow .15s;
+  transition: box-shadow .15s, transform .15s;
 }
 #calendario .fc-event:hover {
   box-shadow: 0 3px 8px rgba(0,0,0,0.25);
   transform: translateY(-1px);
 }
-#calendario .fc-daygrid-day-number {
-  font-weight: 700;
-  font-size: 0.9rem;
+#calendario .fc-event.fc-event-dragging {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  transform: scale(1.03);
+  opacity: .85;
 }
+#calendario .fc-daygrid-day-number { font-weight: 700; font-size: 0.9rem; }
 #calendario .fc-col-header-cell {
   background: linear-gradient(135deg, #0077b6, #00b4d8);
   font-weight: 700;
@@ -246,9 +319,7 @@ document.addEventListener('DOMContentLoaded', function () {
   color: #fff !important;
   padding: 6px 0;
 }
-#calendario .fc-col-header-cell a {
-  color: #fff !important;
-}
+#calendario .fc-col-header-cell a { color: #fff !important; }
 #calendario .fc-day-today {
   background: linear-gradient(135deg,#e8f4fd,#dbeafe) !important;
 }
@@ -260,28 +331,14 @@ document.addEventListener('DOMContentLoaded', function () {
   background: #0077b6 !important;
   border-color: #005f93 !important;
 }
-#calendario .fc-button-primary:hover {
-  background: #005f93 !important;
-}
-#calendario .fc-list-event:hover td {
-  background: #f0f8ff;
-}
-.eb-cal-card {
-  border-radius: 14px;
-  overflow: hidden;
-}
-#modalHeader {
-  transition: background .2s;
-}
+#calendario .fc-button-primary:hover { background: #005f93 !important; }
+#calendario .fc-list-event:hover td { background: #f0f8ff; }
+#calendario .fc-daygrid-day:hover { background: rgba(13,110,253,.04); cursor: pointer; }
+.eb-cal-card { border-radius: 14px; overflow: hidden; }
+#modalHeader { transition: background .2s; }
 @media (max-width: 576px) {
-  #calendario .fc-toolbar {
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  #calendario .fc-toolbar-chunk {
-    display: flex;
-    justify-content: center;
-  }
+  #calendario .fc-toolbar { flex-direction: column; gap: 0.4rem; }
+  #calendario .fc-toolbar-chunk { display: flex; justify-content: center; }
   #vista-btns { display: none; }
 }
 </style>

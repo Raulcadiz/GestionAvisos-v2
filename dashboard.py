@@ -19,8 +19,12 @@ def _base_query():
 
 
 @dashboard_bp.route('/')
-@login_required
 def index():
+    """Raíz: landing pública para visitantes, dashboard para usuarios autenticados."""
+    if not current_user.is_authenticated:
+        from models import ELECTRODOMESTICOS
+        return render_template('publico/landing.html', electrodomesticos=ELECTRODOMESTICOS)
+
     hoy = date.today()
     proximos_dias = hoy + timedelta(days=7)
     bq = _base_query()
@@ -132,7 +136,12 @@ def finalizados():
 @login_required
 def telegram_ajustes():
     estado = diagnosticar()
-    return render_template('dashboard/telegram.html', estado=estado)
+    try:
+        from whatsapp_bot import diagnosticar_whatsapp
+        estado_wa = diagnosticar_whatsapp()
+    except Exception:
+        estado_wa = {'ok': False, 'error': 'whatsapp_bot no disponible'}
+    return render_template('dashboard/telegram.html', estado=estado, estado_wa=estado_wa)
 
 
 @dashboard_bp.route('/dashboard/telegram/test', methods=['POST'])

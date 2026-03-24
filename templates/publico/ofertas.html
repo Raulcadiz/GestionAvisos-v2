@@ -1,141 +1,152 @@
-{% extends 'publico/base_publica.html' %}
-{% block title %}Ofertas electrodomésticos Cádiz — ElectroBahía{% endblock %}
-{% block meta_desc %}Compara precios de electrodomésticos en Electrofactory Cádiz. Lavadoras, frigoríficos, hornos y más.{% endblock %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ofertas Electrodomésticos — ElectroBahía</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body { background: #f8f9fa; }
+    .eb-header {
+      background: linear-gradient(135deg, #0d6efd 0%, #0077b6 100%);
+      color: white; padding: 2rem 1rem; text-align: center;
+    }
+    .oferta-card {
+      border: none; border-radius: 16px; transition: transform .2s, box-shadow .2s;
+      overflow: hidden; height: 100%;
+    }
+    .oferta-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.15); }
+    .oferta-icon { font-size: 3.5rem; }
+    .nav-pills-pub .nav-link { color: #495057; font-weight: 500; }
+    .nav-pills-pub .nav-link:hover { background: #e9ecef; }
+    .badge-factory { background: #e8f4ff; color: #0d6efd; border: 1px solid #b6d4fe; font-size:.8rem; }
+  </style>
+</head>
+<body>
 
-{% block head %}
-<style>
-  .ofertas-hero {
-    background: linear-gradient(135deg, #0d1b3e, #1565c0);
-    color: #fff;
-    padding: 2.5rem 0;
-    text-align: center;
-  }
-  .cat-btn {
-    border-radius: 50px;
-    padding: .4rem 1rem;
-    font-size: .85rem;
-    border: 2px solid #dee2e6;
-    background: #fff;
-    color: #495057;
-    text-decoration: none;
-    transition: all .15s;
-    white-space: nowrap;
-  }
-  .cat-btn:hover, .cat-btn.activo {
-    background: #1565c0;
-    border-color: #1565c0;
-    color: #fff;
-  }
-  .producto-card {
-    border: none;
-    border-radius: 14px;
-    box-shadow: 0 2px 16px rgba(0,0,0,.07);
-    overflow: hidden;
-    height: 100%;
-    transition: transform .2s;
-    background: #fff;
-  }
-  .producto-card:hover { transform: translateY(-3px); }
-  .producto-img {
-    height: 160px;
-    background: #f8f9fa;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .producto-img img { max-height: 160px; max-width: 100%; object-fit: contain; }
-  .precio { color: #e53935; font-weight: 700; font-size: 1.1rem; }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="ofertas-hero">
-  <div class="container">
-    <h1 class="h3 fw-bold mb-1">🛒 Electrodomésticos Electrofactory</h1>
-    <p class="opacity-75 small mb-0">Compara y compra en Electrofactory Cádiz · Te instalamos nosotros</p>
-  </div>
+<!-- Header -->
+<div class="eb-header">
+  <div class="fs-1 mb-1">⚡</div>
+  <h1 class="h2 fw-bold mb-1">ElectroBahía · Ofertas</h1>
+  <p class="mb-0 opacity-75">Electrodomésticos al mejor precio · En colaboración con ElectroFactory</p>
 </div>
 
-<div class="container py-4">
-
-  <!-- Categorías -->
-  <div class="d-flex flex-wrap gap-2 mb-4">
-    {% for slug, icono, nombre in categorias %}
-    <a href="{{ url_for('publico.ofertas', cat=slug) }}"
-       class="cat-btn {% if categoria_sel == slug %}activo{% endif %}">
-      {{ icono }} {{ nombre }}
-    </a>
-    {% endfor %}
-  </div>
-
-  {% if productos %}
-  <!-- Banner instalación -->
-  <div class="alert border-0 mb-4 p-3 rounded-3 d-flex align-items-center gap-3"
-       style="background:#e3f2fd">
-    <span style="font-size:1.8rem">⚡</span>
-    <div>
-      <strong>¿Compraste uno nuevo?</strong> Te lo instalamos nosotros.
-      <a href="{{ url_for('publico.aviso_publico') }}" class="ms-1 fw-semibold">Solicitar instalación →</a>
+<!-- Barra navegación pública -->
+<nav class="bg-white border-bottom py-2 px-3">
+  <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('publico.aviso_publico') }}" class="btn btn-sm btn-outline-primary">
+        🔧 Solicitar reparación
+      </a>
+      <a href="{{ url_for('ia.diagnostico_publico') }}" class="btn btn-sm btn-outline-secondary">
+        🤖 Diagnóstico IA
+      </a>
     </div>
+    <a href="{{ url_for('auth.login_page') }}" class="btn btn-sm btn-light text-muted border">
+      🔑 Acceso técnicos
+    </a>
+  </div>
+</nav>
+
+<div class="container py-5">
+
+  <div class="text-center mb-5">
+    <h2 class="fw-bold">Catálogo de Electrodomésticos</h2>
+    <p class="text-muted">Compra online a través de nuestro partner ElectroFactory y disfruta de las mejores marcas.<br>
+      ¿Necesitas instalación? Contáctanos y te enviamos a nuestros técnicos.</p>
+    <span class="badge badge-factory fs-6 px-3 py-2">🏪 Distribuidor oficial ElectroFactory · Cádiz</span>
   </div>
 
-  <div class="row g-3">
-    {% for p in productos %}
-    <div class="col-6 col-md-4 col-lg-3">
-      <div class="producto-card">
-        <div class="producto-img">
-          {% if p.imagen %}
-            <img src="{{ p.imagen }}" alt="{{ p.nombre }}" loading="lazy">
-          {% else %}
-            <span style="font-size:3rem">
-              {% set iconos_cat = {'lavadoras':'🧺','frigorificos':'❄️','hornos':'🔥','lavavajillas':'🍽️','vitroceramicas':'⚡'} %}
-              {{ iconos_cat.get(categoria_sel, '📦') }}
-            </span>
-          {% endif %}
-        </div>
-        <div class="p-3">
-          <p class="small mb-2 fw-semibold" style="line-height:1.3;font-size:.82rem">
-            {{ p.nombre[:55] }}{% if p.nombre|length > 55 %}…{% endif %}
-          </p>
-          {% if p.precio %}
-            <div class="precio mb-2">{{ p.precio }}</div>
-          {% endif %}
-          <a href="{{ p.url if p.url.startswith('http') else base_url + p.url }}"
-             target="_blank" rel="noopener"
-             class="btn btn-outline-primary btn-sm w-100" style="font-size:.78rem">
-            Ver en Electrofactory <i class="bi bi-box-arrow-up-right ms-1"></i>
+  <!-- Grid de categorías -->
+  <div class="row g-4 mb-5">
+    {% for cat in categorias %}
+    <div class="col-12 col-sm-6 col-lg-4">
+      <div class="card oferta-card shadow-sm h-100">
+        <div class="card-body text-center p-4">
+          <div class="oferta-icon mb-3">{{ cat.icono }}</div>
+          <h4 class="fw-bold mb-2">{{ cat.nombre }}</h4>
+          <p class="text-muted small mb-4">{{ cat.descripcion }}</p>
+          <a href="{{ cat.url }}" target="_blank" rel="noopener"
+             class="btn btn-{{ cat.color }} w-100 fw-semibold">
+            Ver ofertas →
           </a>
+        </div>
+        <div class="card-footer bg-light text-center py-2">
+          <small class="text-muted">
+            🛒 ElectroFactory &nbsp;|&nbsp;
+            <a href="{{ url_for('publico.aviso_publico') }}" class="text-decoration-none text-primary">
+              + Solicitar instalación
+            </a>
+          </small>
         </div>
       </div>
     </div>
     {% endfor %}
   </div>
 
-  {% else %}
-  <!-- Sin productos - web caída o sin scraping -->
-  <div class="text-center py-5">
-    <div style="font-size:3.5rem">🏪</div>
-    <h5 class="mt-3 fw-bold">Ver catálogo completo de Electrofactory</h5>
-    <p class="text-muted mb-4">
-      Accede directamente a la tienda para ver precios y disponibilidad actualizados.
-    </p>
-    <div class="d-flex flex-wrap gap-2 justify-content-center">
-      {% for slug, icono, nombre in categorias %}
-      <a href="{{ base_url }}/buscar?q={{ slug }}"
-         target="_blank" rel="noopener"
-         class="btn btn-outline-primary">
-        {{ icono }} {{ nombre }}
-      </a>
-      {% endfor %}
+  <!-- Banner servicio técnico -->
+  <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="row g-0 align-items-center">
+      <div class="col-md-8 p-4 p-md-5">
+        <h3 class="fw-bold mb-2">¿Has comprado un electrodoméstico nuevo?</h3>
+        <p class="text-muted mb-3">
+          Nuestros técnicos certificados realizan instalaciones de todos los electrodomésticos en Cádiz, San Fernando, Chiclana y toda la Bahía.
+          Instalación profesional, limpia y con garantía.
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('publico.aviso_publico') }}" class="btn btn-primary btn-lg">
+            📨 Solicitar instalación
+          </a>
+          <a href="{{ url_for('ia.diagnostico_publico') }}" class="btn btn-outline-secondary btn-lg">
+            🤖 Diagnóstico IA gratis
+          </a>
+        </div>
+      </div>
+      <div class="col-md-4 d-none d-md-flex align-items-center justify-content-center bg-primary bg-opacity-10 p-5">
+        <span style="font-size:6rem">🔧</span>
+      </div>
     </div>
-    <hr class="my-4">
-    <p class="text-muted small">
-      También puedes <a href="https://wa.me/{{ config.WHATSAPP_NUMERO }}?text=Hola,%20quiero%20información%20sobre%20un%20electrodoméstico">
-      preguntarnos por WhatsApp</a> y te asesoramos sin compromiso.
-    </p>
   </div>
-  {% endif %}
+
+  <!-- Info adicional -->
+  <div class="row g-3 text-center">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3 h-100">
+        <div class="fs-2 mb-1">🏙️</div>
+        <div class="fw-semibold small">Toda la Bahía de Cádiz</div>
+        <div class="text-muted" style="font-size:.8rem">Cádiz · San Fernando · Chiclana · El Puerto</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3 h-100">
+        <div class="fs-2 mb-1">⚡</div>
+        <div class="fw-semibold small">Respuesta rápida</div>
+        <div class="text-muted" style="font-size:.8rem">Técnico en tu domicilio en 24-48h</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3 h-100">
+        <div class="fs-2 mb-1">✅</div>
+        <div class="fw-semibold small">Servicio con garantía</div>
+        <div class="text-muted" style="font-size:.8rem">Reparaciones con garantía mínima de 3 meses</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3 h-100">
+        <div class="fs-2 mb-1">🤖</div>
+        <div class="fw-semibold small">Diagnóstico IA gratis</div>
+        <div class="text-muted" style="font-size:.8rem">Consulta tu avería antes de llamar</div>
+      </div>
+    </div>
+  </div>
 
 </div>
-{% endblock %}
+
+<!-- Footer -->
+<footer class="bg-dark text-white-50 text-center py-3 mt-4">
+  <small>© ElectroBahía · Servicio técnico Bahía de Cádiz</small>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

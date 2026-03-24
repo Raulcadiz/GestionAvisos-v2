@@ -68,14 +68,43 @@
   </div>
 </div>
 
+<!-- Estado WhatsApp -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-header fw-semibold
+    {% if estado_wa and estado_wa.ok %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+    {% if estado_wa and estado_wa.ok %}✅ WhatsApp conectado{% else %}📵 WhatsApp no configurado{% endif %}
+  </div>
+  <div class="card-body">
+    {% if estado_wa and estado_wa.ok %}
+      <p class="mb-1">📱 Número: <strong>{{ estado_wa.numero }}</strong></p>
+      <p class="mb-0 text-muted small">Las notificaciones WhatsApp al cliente están activas.</p>
+    {% else %}
+      <p class="text-muted mb-2 small">{{ estado_wa.error if estado_wa else 'No configurado' }}</p>
+      <div class="alert alert-light border small mb-0">
+        <strong>Para activar WhatsApp:</strong><br>
+        1. Crea una app en <strong>developers.facebook.com</strong> → añade WhatsApp Business<br>
+        2. Copia el token y phone ID a <code>.env</code>:<br>
+        <pre class="bg-white p-2 rounded mt-1 mb-0" style="font-size:.78rem">WHATSAPP_TOKEN=EAAxxxx...
+WHATSAPP_PHONE_NUMBER_ID=123456789
+WHATSAPP_TEMPLATE_RECIBIDO=aviso_recibido
+WHATSAPP_TEMPLATE_ESTADO=aviso_estado</pre>
+        <p class="mt-2 mb-0">3. Crea y aprueba las plantillas en el Business Manager.<br>
+        En sandbox puedes enviar a números verificados sin plantillas.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
 <!-- Aviso .env -->
 <div class="card shadow-sm border-0">
   <div class="card-header fw-semibold">⚙️ Configuración</div>
   <div class="card-body small text-muted">
-    <p class="mb-1">Los valores se guardan en <code>C:\g3v3r\CadizTecnico\.env</code></p>
+    <p class="mb-1">Los valores se guardan en el archivo <code>.env</code></p>
     <pre class="bg-light p-2 rounded mb-0" style="font-size:0.78rem">TELEGRAM_BOT_TOKEN=tu_token_aqui
-TELEGRAM_CHAT_ID=tu_chat_id_aqui</pre>
-    <p class="mt-2 mb-0">⚠️ No compartas el token. Si lo expones regenera uno nuevo en @BotFather.</p>
+TELEGRAM_CHAT_ID=tu_chat_id_aqui
+WHATSAPP_TOKEN=EAAxxxx...
+WHATSAPP_PHONE_NUMBER_ID=123456789</pre>
+    <p class="mt-2 mb-0">⚠️ No compartas los tokens. Si los expones, regenéralos inmediatamente.</p>
   </div>
 </div>
 
@@ -91,6 +120,7 @@ function accion(tipo, btn) {
   };
   const [cargando, exito, error] = textos[tipo];
   const original = btn.textContent;
+  const originalClass = btn.className;
   btn.disabled = true;
   btn.textContent = cargando;
 
@@ -101,14 +131,18 @@ function accion(tipo, btn) {
       btn.className = data.ok ? 'btn btn-success' : 'btn btn-danger';
       setTimeout(() => {
         btn.textContent = original;
-        btn.className = btn.className.replace('btn-success','btn-outline-primary')
-                                     .replace('btn-danger','btn-outline-primary');
+        btn.className = originalClass;
         btn.disabled = false;
       }, 3000);
     })
     .catch(() => {
       btn.textContent = error;
-      btn.disabled = false;
+      btn.className = 'btn btn-danger';
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.className = originalClass;
+        btn.disabled = false;
+      }, 3000);
     });
 }
 </script>

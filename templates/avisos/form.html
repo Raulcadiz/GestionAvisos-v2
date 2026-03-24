@@ -135,7 +135,7 @@
             <div class="col-12 col-md-4">
               <label class="form-label">Fecha de cita</label>
               <input type="date" name="fecha_cita" class="form-control"
-                     value="{{ aviso.fecha_cita.strftime('%Y-%m-%d') if aviso and aviso.fecha_cita else '' }}">
+                     value="{{ aviso.fecha_cita.strftime('%Y-%m-%d') if aviso and aviso.fecha_cita else prefill_fecha_cita|default('') }}">
               {% if aviso and aviso.fecha_cita %}
               <div class="form-check mt-1">
                 <input class="form-check-input" type="checkbox" name="limpiar_cita" id="limpiar_cita">
