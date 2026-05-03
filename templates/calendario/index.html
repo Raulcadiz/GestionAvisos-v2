@@ -2,127 +2,137 @@
 {% block title %}Calendario{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-  <h4 class="fw-bold mb-0">📅 Calendario de Citas</h4>
 
+<!-- Cabecera + controles -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+  <h4 class="fw-bold mb-0">📅 Calendario</h4>
   <div class="d-flex flex-wrap gap-2 align-items-center">
+
     {% if current_user.es_admin %}
-    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:165px">
-      <option value="">👥 Todos mis técnicos</option>
+    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:160px">
+      <option value="">👥 Todos los técnicos</option>
       {% for t in tecnicos %}
-      <option value="{{ t.id }}">{{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name or t.username }}</option>
+      <option value="{{ t.id }}">{{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name }}</option>
       {% endfor %}
     </select>
     {% endif %}
 
-    <select id="filtro-tipo" class="form-select form-select-sm" style="min-width:145px">
-      <option value="">🔍 Todo tipo</option>
+    <select id="filtro-tipo" class="form-select form-select-sm" style="min-width:140px">
+      <option value="">🔍 Todos los tipos</option>
       <option value="reparacion">🔧 Reparación</option>
       <option value="instalacion">⚡ Instalación</option>
       <option value="reparto">📦 Reparto</option>
     </select>
 
     {% if current_user.es_admin and not current_user.es_super_admin %}
-    <div class="form-check form-switch mb-0 ms-1">
-      <input class="form-check-input" type="checkbox" id="toggle-todos" style="cursor:pointer">
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" id="toggle-todos">
       <label class="form-check-label small fw-semibold" for="toggle-todos">Ver todos</label>
     </div>
     {% endif %}
 
-    <div class="btn-group btn-group-sm" role="group" id="vista-btns">
-      <button class="btn btn-outline-secondary active" data-view="dayGridMonth">Mes</button>
-      <button class="btn btn-outline-secondary" data-view="timeGridWeek">Semana</button>
-      <button class="btn btn-outline-secondary" data-view="timeGridDay">Día</button>
-      <button class="btn btn-outline-secondary" data-view="listWeek">Lista</button>
+    <div class="btn-group btn-group-sm" id="vista-btns">
+      <button class="btn btn-outline-secondary" data-view="dayGridMonth" title="Mes">Mes</button>
+      <button class="btn btn-outline-secondary active" data-view="timeGridWeek" title="Semana">Semana</button>
+      <button class="btn btn-outline-secondary" data-view="timeGridDay" title="Día">Día</button>
+      <button class="btn btn-outline-secondary" data-view="listWeek" title="Lista">Lista</button>
     </div>
 
     {% if current_user.es_admin_o_superior %}
-    <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success fw-semibold">➕ Nuevo aviso</a>
+    <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success fw-semibold">➕ Nuevo</a>
     {% endif %}
   </div>
 </div>
 
-<!-- Leyenda estados -->
-<div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
-  <span class="small text-muted fw-semibold me-1">Estado:</span>
-  <span class="badge rounded-pill px-3 py-2" style="background:#ffc107;color:#000">⏳ Pendiente</span>
-  <span class="badge rounded-pill px-3 py-2 bg-danger">🔴 Hoy</span>
-  <span class="badge rounded-pill px-3 py-2" style="background:#0dcaf0;color:#000">📦 Esp. material</span>
-  <span class="badge rounded-pill px-3 py-2 bg-primary">🔁 2ª visita</span>
-  <span class="badge rounded-pill px-3 py-2" style="background:#adb5bd;color:#000">✅ Finalizado</span>
-  {% if current_user.es_admin_o_superior %}
-  <span class="text-muted small ms-2">· Arrastra para cambiar fecha</span>
-  {% endif %}
-</div>
+<!-- Layout: panel hoy (izq) + calendario (der) -->
+<div class="row g-3 align-items-start">
 
-<!-- Leyenda técnicos con contador -->
-{% if current_user.es_admin and tecnicos %}
-<div class="d-flex flex-wrap gap-2 mb-3 align-items-center" id="leyenda-tecnicos">
-  <span class="small text-muted fw-semibold me-1">Técnicos:</span>
-  {% set colores = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'] %}
-  {% for t in tecnicos %}
-  <span class="badge rounded-pill px-2 py-1 eb-tecnico-badge"
-        style="background:{{ colores[loop.index0 % colores|length] }};color:#fff;font-size:0.75rem;cursor:pointer"
-        data-tecnico-id="{{ t.id }}"
-        title="Filtrar por {{ t.display_name }}">
-    {{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name }}
-    <span class="eb-contador ms-1 opacity-75" data-id="{{ t.id }}"></span>
-  </span>
-  {% endfor %}
-</div>
-{% endif %}
+  <!-- Panel "Hoy" -->
+  <div class="col-12 col-xl-3 order-2 order-xl-1">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header fw-semibold py-2 px-3 d-flex justify-content-between align-items-center" style="background:linear-gradient(135deg,#0077b6,#00b4d8);color:#fff">
+        <span>📋 <span id="hoy-titulo">Hoy</span></span>
+        <span class="badge bg-white text-primary fw-bold" id="hoy-count">0</span>
+      </div>
+      <div class="card-body p-0" id="hoy-lista" style="max-height:75vh;overflow-y:auto">
+        <div class="text-center text-muted py-4 small" id="hoy-vacio">
+          <div class="fs-2 mb-1">🗓️</div>Sin citas
+        </div>
+      </div>
+    </div>
 
-<!-- Alerta "ver todos" para admins -->
-{% if current_user.es_admin and not current_user.es_super_admin %}
-<div id="alerta-todos" class="alert alert-info alert-sm py-1 px-3 d-none mb-2 small">
-  <strong>ℹ️ Modo «Ver todos»</strong> — Ves las citas de <em>todos los equipos</em>. Los avisos de otros admins aparecen con borde gris y sin poder editarlos.
-</div>
-{% endif %}
+    <!-- Leyenda técnicos -->
+    {% if current_user.es_admin and tecnicos %}
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-header fw-semibold py-2 px-3 small bg-light">👥 Técnicos</div>
+      <div class="card-body py-2 px-3">
+        {% set colores = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'] %}
+        {% for t in tecnicos %}
+        <div class="d-flex align-items-center gap-2 mb-1 eb-tecnico-row" style="cursor:pointer" data-tecnico-id="{{ t.id }}">
+          <span class="eb-dot-tecnico rounded-circle" style="width:12px;height:12px;flex-shrink:0;background:{{ colores[loop.index0 % colores|length] }}"></span>
+          <span class="small fw-semibold">{{ t.display_name }}</span>
+          <span class="badge bg-light text-muted ms-auto eb-cnt-{{ t.id }}" style="font-size:0.65rem"></span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
 
-<div class="card shadow border-0 eb-cal-card">
-  <div class="card-body p-2 p-md-3">
-    <div id="calendario"></div>
+    <!-- Leyenda estados -->
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-header fw-semibold py-2 px-3 small bg-light">📋 Estados</div>
+      <div class="card-body py-2 px-3">
+        <div class="d-flex flex-column gap-1">
+          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#ffc107;flex-shrink:0"></span><span class="small">Pendiente</span></div>
+          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#dc3545;flex-shrink:0"></span><span class="small">Hoy</span></div>
+          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#0dcaf0;flex-shrink:0"></span><span class="small">Esp. material</span></div>
+          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#0d6efd;flex-shrink:0"></span><span class="small">2ª visita</span></div>
+          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#adb5bd;flex-shrink:0"></span><span class="small">Finalizado</span></div>
+        </div>
+      </div>
+    </div>
+
   </div>
+
+  <!-- Calendario principal -->
+  <div class="col-12 col-xl-9 order-1 order-xl-2">
+    <div class="card shadow border-0" style="border-radius:14px;overflow:hidden">
+      <div class="card-body p-1 p-md-2">
+        <div id="calendario"></div>
+      </div>
+    </div>
+    {% if current_user.es_admin_o_superior %}
+    <p class="text-muted small mt-1 mb-0">💡 Clic en un día para crear aviso · Arrastra para cambiar fecha</p>
+    {% endif %}
+  </div>
+
 </div>
 
 <!-- Modal detalle rápido -->
-<div class="modal fade" id="modalEvento" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+<div class="modal fade" id="modalEvento" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
     <div class="modal-content border-0 shadow-lg">
       <div class="modal-header py-2 px-3" id="modalHeader">
         <div class="flex-grow-1">
           <h6 class="modal-title fw-bold mb-0" id="modalTitulo"></h6>
-          <small id="modalNombreCliente" class="opacity-80"></small>
+          <small id="modalSub" class="opacity-80"></small>
         </div>
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body py-2 px-3" id="modalCuerpo"></div>
-      <div class="modal-footer py-2 px-3 gap-2">
-        <a id="modalEnlace" href="#" class="btn btn-primary btn-sm flex-grow-1">Ver aviso →</a>
+      <div class="modal-footer py-2 gap-2">
+        <a id="modalEnlace" href="#" class="btn btn-primary btn-sm flex-grow-1">Ver aviso completo →</a>
         <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal lista del día -->
-<div class="modal fade" id="modalDia" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:420px">
-    <div class="modal-content border-0 shadow-lg">
-      <div class="modal-header eb-card-header-blue py-2 px-3">
-        <h6 class="modal-title fw-bold mb-0" id="modalDiaTitulo">📅 Citas del día</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-2" id="modalDiaCuerpo"></div>
-    </div>
-  </div>
-</div>
-
-<!-- Toast feedback drag-drop -->
+<!-- Toast drag-drop -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
-  <div id="toastDrag" class="toast align-items-center text-white border-0" role="alert">
+  <div id="toastDrag" class="toast align-items-center text-white border-0">
     <div class="d-flex">
-      <div class="toast-body fw-semibold" id="toastDragMsg">Cita actualizada</div>
+      <div class="toast-body fw-semibold" id="toastMsg"></div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
@@ -134,265 +144,320 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-  const calEl         = document.getElementById('calendario');
-  const modal         = new bootstrap.Modal(document.getElementById('modalEvento'));
-  const modalDia      = new bootstrap.Modal(document.getElementById('modalDia'));
+  // ── Colores por técnico ───────────────────────────────────────────────────
+  const PALETA = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'];
+  const mapaColor = {};  // tecnico_id → color
+  document.querySelectorAll('.eb-tecnico-row').forEach((el, i) => {
+    mapaColor[el.dataset.tecnicoId] = PALETA[i % PALETA.length];
+  });
+
+  // ── Colores por estado (badge pequeño) ──────────────────────────────────
+  const ESTADO_COLOR = {
+    pendiente:          '#ffc107',
+    hoy:                '#dc3545',
+    esperando_material: '#0dcaf0',
+    segunda_visita:     '#0d6efd',
+    finalizado:         '#adb5bd',
+  };
+
+  // ── Refs DOM ──────────────────────────────────────────────────────────────
   const filtroTecnico = document.getElementById('filtro-tecnico');
   const filtroTipo    = document.getElementById('filtro-tipo');
   const toggleTodos   = document.getElementById('toggle-todos');
-  const alertaTodos   = document.getElementById('alerta-todos');
   const toastEl       = document.getElementById('toastDrag');
-  const toastMsg      = document.getElementById('toastDragMsg');
   const bsToast       = new bootstrap.Toast(toastEl, { delay: 3000 });
+  const modal         = new bootstrap.Modal(document.getElementById('modalEvento'));
+  const PUEDE_EDITAR  = {{ 'true' if current_user.es_admin_o_superior else 'false' }};
 
-  const PUEDE_EDITAR = {{ 'true' if current_user.es_admin_o_superior else 'false' }};
+  // ── Panel Hoy ──────────────────────────────────────────────────────────
+  const hoyLista = document.getElementById('hoy-lista');
+  const hoyVacio = document.getElementById('hoy-vacio');
+  const hoyCount = document.getElementById('hoy-count');
+  let   fechaActiva = new Date().toISOString().slice(0,10);
 
-  // Mapa de colores por técnico
-  const COLORES_TECNICOS = [
-    '#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'
-  ];
-  const mapaColorTecnico = {};
-  document.querySelectorAll('#leyenda-tecnicos [data-tecnico-id]').forEach((el, i) => {
-    mapaColorTecnico[el.dataset.tecnicoId] = COLORES_TECNICOS[i % COLORES_TECNICOS.length];
-  });
+  function cargarHoy(fecha) {
+    fechaActiva = fecha;
+    const tid  = filtroTecnico ? filtroTecnico.value : '';
+    const tipo = filtroTipo ? filtroTipo.value : '';
+    const todos = toggleTodos && toggleTodos.checked ? '1' : '0';
+    const start = fecha;
+    const end   = new Date(new Date(fecha).getTime() + 86400000).toISOString().slice(0,10);
+    let url = `/calendario/api/eventos?start=${start}&end=${end}&todos=${todos}`;
+    if (tid)  url += `&tecnico_id=${tid}`;
+    if (tipo) url += `&tipo=${tipo}`;
 
-  // Click en badge de técnico filtra el calendario
-  document.querySelectorAll('.eb-tecnico-badge').forEach(el => {
+    // título del panel
+    const dt = new Date(fecha + 'T12:00:00');
+    const esHoy = fecha === new Date().toISOString().slice(0,10);
+    document.getElementById('hoy-titulo').textContent = esHoy ? 'Hoy' :
+      dt.toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short' });
+
+    fetch(url).then(r => r.json()).then(eventos => {
+      hoyCount.textContent = eventos.length;
+      if (!eventos.length) {
+        hoyLista.innerHTML = '';
+        hoyVacio.style.display = '';
+        hoyLista.appendChild(hoyVacio);
+        return;
+      }
+      hoyVacio.style.display = 'none';
+      // Ordenar por hora
+      eventos.sort((a, b) => (a.start > b.start ? 1 : -1));
+      hoyLista.innerHTML = eventos.map(ev => {
+        const p    = ev.extendedProps;
+        const hora = p.hora_cita ? `<span class="badge bg-dark me-1" style="font-size:0.7rem">${p.hora_cita}</span>` : '';
+        const colorTec = mapaColor[p.tecnico_id] || '#6c757d';
+        const colorEst = ESTADO_COLOR[ev.backgroundColor] || ev.backgroundColor;
+        return `<a href="${ev.url}" class="d-block px-3 py-2 text-decoration-none border-bottom hoy-item"
+                   style="border-left:4px solid ${ev.backgroundColor}!important;border-left-width:4px">
+          <div class="d-flex align-items-start gap-2">
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-semibold small text-dark text-truncate">${hora}${p.tipo_icon} ${p.calle || p.nombre_cliente}</div>
+              ${p.calle ? `<div class="text-muted" style="font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 ${p.nombre_cliente}</div>` : ''}
+              ${p.electrodomestico ? `<div class="text-muted" style="font-size:0.72rem">🔧 ${p.electrodomestico}${p.marca ? ' · '+p.marca : ''}</div>` : ''}
+              ${p.tecnico ? `<div style="font-size:0.72rem;color:${colorTec};font-weight:600">● ${p.tecnico}</div>` : ''}
+            </div>
+            ${p.telefono ? `<a href="tel:${p.telefono}" class="text-success fw-bold" style="font-size:0.8rem;white-space:nowrap" onclick="event.stopPropagation()">📞</a>` : ''}
+          </div>
+        </a>`;
+      }).join('');
+    });
+  }
+
+  cargarHoy(fechaActiva);
+
+  // Click en fila de técnico → filtrar
+  document.querySelectorAll('.eb-tecnico-row').forEach(el => {
     el.addEventListener('click', function() {
-      const tid = this.dataset.tecnicoId;
       if (filtroTecnico) {
+        const tid = this.dataset.tecnicoId;
         filtroTecnico.value = filtroTecnico.value === tid ? '' : tid;
         cal.refetchEvents();
+        cargarHoy(fechaActiva);
       }
     });
   });
 
-  // Toggle "ver todos"
   if (toggleTodos) {
-    toggleTodos.addEventListener('change', function() {
-      if (alertaTodos) alertaTodos.classList.toggle('d-none', !this.checked);
-      cal.refetchEvents();
-    });
+    toggleTodos.addEventListener('change', () => { cal.refetchEvents(); cargarHoy(fechaActiva); });
   }
 
+  // ── URL de eventos ────────────────────────────────────────────────────────
   function buildUrl(info) {
     const tid  = filtroTecnico ? filtroTecnico.value : '';
     const tipo = filtroTipo    ? filtroTipo.value    : '';
-    const todos = (toggleTodos && toggleTodos.checked) ? '1' : '0';
+    const todos = toggleTodos && toggleTodos.checked ? '1' : '0';
     let url = `/calendario/api/eventos?start=${info.startStr}&end=${info.endStr}&todos=${todos}`;
     if (tid)  url += `&tecnico_id=${tid}`;
     if (tipo) url += `&tipo=${tipo}`;
     return url;
   }
 
-  function mostrarToast(msg, ok) {
-    toastMsg.textContent = msg;
+  // ── Toast ────────────────────────────────────────────────────────────────
+  function toast(msg, ok) {
+    document.getElementById('toastMsg').textContent = msg;
     toastEl.className = `toast align-items-center text-white border-0 ${ok ? 'bg-success' : 'bg-danger'}`;
     bsToast.show();
   }
 
-  // Actualizar contadores de técnicos en leyenda
+  // ── Actualizar contadores en leyenda técnicos ────────────────────────────
   function actualizarContadores(eventos) {
-    const contadores = {};
-    eventos.forEach(e => {
-      const tid = e.extendedProps && e.extendedProps.tecnico_id;
-      if (tid) contadores[tid] = (contadores[tid] || 0) + 1;
-    });
-    document.querySelectorAll('.eb-contador').forEach(el => {
-      const cnt = contadores[el.dataset.id] || 0;
-      el.textContent = cnt > 0 ? `(${cnt})` : '';
+    const cnt = {};
+    eventos.forEach(e => { const t = e.extendedProps.tecnico_id; if (t) cnt[t] = (cnt[t]||0)+1; });
+    document.querySelectorAll('[class*="eb-cnt-"]').forEach(el => {
+      const cls = [...el.classList].find(c => c.startsWith('eb-cnt-'));
+      if (!cls) return;
+      const id  = cls.split('-')[2];
+      const n   = cnt[id] || 0;
+      el.textContent  = n > 0 ? n : '';
+      el.style.display = n > 0 ? '' : 'none';
     });
   }
 
-  const cal = new FullCalendar.Calendar(calEl, {
-    locale: 'es',
-    initialView: 'dayGridMonth',
-    height: 'auto',
-    firstDay: 1,
-    eventDisplay: 'block',
+  // ── FullCalendar ─────────────────────────────────────────────────────────
+  const cal = new FullCalendar.Calendar(document.getElementById('calendario'), {
+    locale:       'es',
+    initialView:  'timeGridWeek',   // Vista semana con horas por defecto
+    height:       'auto',
+    firstDay:     1,
     nowIndicator: true,
+    editable:     PUEDE_EDITAR,
+    droppable:    false,
+    dayMaxEvents: 3,
 
-    editable: PUEDE_EDITAR,
-    droppable: false,
-
-    headerToolbar: {
-      left:   'prev,next today',
-      center: 'title',
-      right:  false,
-    },
-    buttonText: { today: 'Hoy' },
+    headerToolbar: { left: 'prev,next today', center: 'title', right: false },
+    buttonText:    { today: 'Hoy' },
 
     views: {
       timeGridWeek: {
-        titleFormat: { month: 'short', day: 'numeric' },
-        slotMinTime: '07:00:00',
-        slotMaxTime: '21:00:00',
-        slotDuration: '00:30:00',
+        titleFormat:   { month: 'short', day: 'numeric' },
+        slotMinTime:   '07:00:00',
+        slotMaxTime:   '21:00:00',
+        slotDuration:  '00:30:00',
+        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        eventMinHeight: 36,
+        allDaySlot:    true,
       },
       timeGridDay: {
-        titleFormat: { weekday: 'long', day: 'numeric', month: 'long' },
-        slotMinTime: '07:00:00',
-        slotMaxTime: '21:00:00',
+        titleFormat:  { weekday: 'long', day: 'numeric', month: 'long' },
+        slotMinTime:  '07:00:00',
+        slotMaxTime:  '21:00:00',
         slotDuration: '00:30:00',
+        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        eventMinHeight: 48,
+        allDaySlot:   true,
+      },
+      dayGridMonth: {
+        dayMaxEvents: 4,
       },
     },
 
-    events: function (fetchInfo, success, failure) {
-      fetch(buildUrl(fetchInfo))
+    // ── Cargar eventos ───────────────────────────────────────────────────
+    events: function (info, success, failure) {
+      fetch(buildUrl(info))
         .then(r => r.json())
-        .then(data => {
-          actualizarContadores(data);
-          success(data);
-        })
-        .catch(err => failure(err));
+        .then(data => { actualizarContadores(data); success(data); })
+        .catch(err  => failure(err));
     },
 
-    // Contenido del evento con más info
-    eventContent: function(arg) {
-      const props = arg.event.extendedProps;
-      const tecnico = props.tecnico || '';
-      const hora = props.hora_cita || '';
-      const otroEquipo = props.es_otro_equipo;
-      const adminTag = otroEquipo && props.admin_nombre
-        ? `<div style="font-size:0.62rem;opacity:0.75">🔑 ${props.admin_nombre}</div>` : '';
-      return {
-        html: `<div class="fc-event-inner${otroEquipo ? ' fc-otro-equipo-inner' : ''}" style="padding:2px 4px;overflow:hidden">
-          ${hora ? `<div style="font-size:0.65rem;opacity:0.85;font-weight:700">${hora}</div>` : ''}
-          <div class="fw-semibold text-truncate" style="font-size:0.78rem">${arg.event.title}</div>
-          ${tecnico ? `<div style="font-size:0.68rem;opacity:0.9">👤 ${tecnico}</div>` : ''}
-          ${adminTag}
-        </div>`
-      };
+    // ── Contenido del evento ─────────────────────────────────────────────
+    eventContent: function (arg) {
+      const p    = arg.event.extendedProps;
+      const hora = p.hora_cita;
+      const colorTec = mapaColor[p.tecnico_id];
+
+      // Banda de color de técnico (si existe) como borde izquierdo interno
+      const bandaTec = colorTec
+        ? `<span style="display:inline-block;width:3px;height:100%;background:${colorTec};border-radius:2px;margin-right:4px;flex-shrink:0"></span>`
+        : '';
+
+      return { html: `
+        <div class="eb-ev" style="display:flex;align-items:flex-start;gap:2px;padding:2px 4px;height:100%;overflow:hidden">
+          ${bandaTec}
+          <div style="flex:1;min-width:0;overflow:hidden">
+            ${hora ? `<div style="font-size:0.62rem;font-weight:800;color:inherit;opacity:0.9;line-height:1.1">${hora}</div>` : ''}
+            <div style="font-size:0.77rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">${p.tipo_icon} ${p.calle || p.nombre_cliente}</div>
+            ${p.calle && p.nombre_cliente ? `<div style="font-size:0.67rem;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">👤 ${p.nombre_cliente}</div>` : ''}
+            ${p.tecnico ? `<div style="font-size:0.67rem;font-weight:600;color:${colorTec||'inherit'};opacity:0.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">● ${p.tecnico}</div>` : ''}
+            ${p.electrodomestico ? `<div style="font-size:0.65rem;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1">🔧 ${p.electrodomestico}</div>` : ''}
+          </div>
+        </div>` };
     },
 
-    // Click en evento → modal
+    // ── Click en evento → modal ──────────────────────────────────────────
     eventClick: function (info) {
       info.jsEvent.preventDefault();
-      const ev    = info.event;
-      const props = ev.extendedProps;
-      const fecha = ev.start.toLocaleDateString('es-ES', {
-        weekday: 'long', day: 'numeric', month: 'long'
-      });
+      const ev = info.event;
+      const p  = ev.extendedProps;
+      const colorTec = mapaColor[p.tecnico_id];
 
-      const header = document.getElementById('modalHeader');
-      header.style.background = ev.backgroundColor;
-      header.style.color = ev.textColor || '#000';
+      const hdr = document.getElementById('modalHeader');
+      hdr.style.background = ev.backgroundColor;
+      hdr.style.color      = ev.textColor || '#000';
       document.querySelector('#modalHeader .btn-close').style.filter =
-        (ev.textColor === '#ffffff') ? 'invert(1)' : '';
+        ev.textColor === '#ffffff' ? 'invert(1)' : '';
 
-      document.getElementById('modalTitulo').textContent = props.calle || props.nombre_cliente || ev.title;
-      const subtitulo = document.getElementById('modalNombreCliente');
-      if (props.calle && props.nombre_cliente) {
-        subtitulo.textContent = '👤 ' + props.nombre_cliente;
-        subtitulo.style.display = '';
-      } else {
-        subtitulo.style.display = 'none';
-      }
+      document.getElementById('modalTitulo').textContent = p.calle || p.nombre_cliente || ev.title;
+      const sub = document.getElementById('modalSub');
+      sub.style.display = (p.calle && p.nombre_cliente) ? '' : 'none';
+      sub.textContent   = p.calle && p.nombre_cliente ? '👤 ' + p.nombre_cliente : '';
 
+      const fecha = ev.start.toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long' });
       let html = `<table class="table table-sm mb-0 small">
-        <tr><th class="text-muted pe-2" style="width:36%">📅 Fecha</th>
-            <td class="fw-semibold">${fecha}${props.hora_cita ? ' · ' + props.hora_cita : ''}</td></tr>
-        <tr><th class="text-muted">${props.tipo_icon} Tipo</th><td>${props.tipo_servicio}</td></tr>
-        <tr><th class="text-muted">📋 Estado</th><td><span class="badge bg-secondary">${props.estado}</span></td></tr>`;
-      if (props.localidad)
-        html += `<tr><th class="text-muted">🏙️ Localidad</th><td>${props.localidad}</td></tr>`;
-      if (props.electrodomestico)
-        html += `<tr><th class="text-muted">🔧 Aparato</th><td>${props.electrodomestico}${props.marca ? ' · ' + props.marca : ''}</td></tr>`;
-      if (props.telefono)
-        html += `<tr><th class="text-muted">📞 Tlf</th><td><a href="tel:${props.telefono}" class="fw-semibold text-success text-decoration-none">${props.telefono}</a></td></tr>`;
-      if (props.tecnico)
-        html += `<tr><th class="text-muted">👤 Técnico</th><td class="fw-semibold">${props.tecnico}</td></tr>`;
-      if (props.es_otro_equipo && props.admin_nombre)
-        html += `<tr><th class="text-muted">🔑 Admin</th><td class="text-muted fst-italic">${props.admin_nombre}</td></tr>`;
-      if (props.origen && props.origen !== 'Particular')
-        html += `<tr><th class="text-muted">🏪 Origen</th><td>${props.origen}</td></tr>`;
-      html += `</table>`;
-      if (props.es_otro_equipo)
-        html += `<div class="alert alert-light py-1 px-2 mt-2 mb-0 small text-muted">Solo lectura — aviso de otro equipo</div>`;
+        <tr><th class="text-muted" style="width:38%">📅 Fecha</th>
+            <td class="fw-semibold">${fecha}${p.hora_cita ? ' · <strong>' + p.hora_cita + '</strong>' : ''}</td></tr>
+        <tr><th class="text-muted">${p.tipo_icon} Tipo</th><td>${p.tipo_servicio}</td></tr>
+        <tr><th class="text-muted">📋 Estado</th>
+            <td><span class="badge rounded-pill" style="background:${ev.backgroundColor};color:${ev.textColor||'#000'}">${p.estado}</span></td></tr>`;
+      if (p.electrodomestico)
+        html += `<tr><th class="text-muted">🔧 Aparato</th><td>${p.electrodomestico}${p.marca ? ' · '+p.marca : ''}</td></tr>`;
+      if (p.localidad)
+        html += `<tr><th class="text-muted">🏙️ Localidad</th><td>${p.localidad}</td></tr>`;
+      if (p.telefono)
+        html += `<tr><th class="text-muted">📞 Tlf.</th><td><a href="tel:${p.telefono}" class="fw-bold text-success text-decoration-none">${p.telefono}</a></td></tr>`;
+      if (p.tecnico)
+        html += `<tr><th class="text-muted">👤 Técnico</th>
+                     <td style="color:${colorTec||'inherit'}" class="fw-bold">● ${p.tecnico}</td></tr>`;
+      if (p.origen && p.origen !== 'Particular')
+        html += `<tr><th class="text-muted">🏪 Origen</th><td>${p.origen}</td></tr>`;
+      if (p.es_otro_equipo)
+        html += `<tr><td colspan="2"><span class="badge bg-light text-muted">Solo lectura — otro equipo (${p.admin_nombre})</span></td></tr>`;
+      html += '</table>';
 
       document.getElementById('modalCuerpo').innerHTML = html;
       document.getElementById('modalEnlace').href = ev.url;
       modal.show();
     },
 
-    // Click en +N eventos → modal lista del día
-    moreLinkClick: function(info) {
-      const fecha = info.date.toLocaleDateString('es-ES', {
-        weekday: 'long', day: 'numeric', month: 'long'
-      });
-      document.getElementById('modalDiaTitulo').textContent = '📅 ' + fecha;
-      let html = '<div class="list-group list-group-flush">';
-      info.allSegs.forEach(seg => {
-        const ev = seg.event;
-        const p  = ev.extendedProps;
-        const hora = p.hora_cita ? `<span class="badge bg-light text-dark me-2">${p.hora_cita}</span>` : '';
-        html += `<a href="${ev.url}" class="list-group-item list-group-item-action py-2 px-3"
-                    style="border-left:4px solid ${ev.backgroundColor}">
-          <div class="d-flex align-items-start gap-2">
-            <div class="flex-grow-1">
-              <div class="fw-semibold small">${hora}${ev.title}</div>
-              ${p.nombre_cliente && p.calle ? `<div class="text-muted" style="font-size:0.75rem">👤 ${p.nombre_cliente}</div>` : ''}
-              ${p.tecnico ? `<div class="text-muted" style="font-size:0.75rem">🔧 ${p.tecnico}</div>` : ''}
-              ${p.telefono ? `<a href="tel:${p.telefono}" class="text-success" style="font-size:0.75rem">📞 ${p.telefono}</a>` : ''}
-            </div>
-            <span class="badge rounded-pill" style="background:${ev.backgroundColor};color:${ev.textColor || '#000'};font-size:0.7rem">${p.estado}</span>
-          </div>
-        </a>`;
-      });
-      html += '</div>';
-      document.getElementById('modalDiaCuerpo').innerHTML = html;
-      modalDia.show();
+    // ── Click en "+N más" → cambia a vista día ───────────────────────────
+    moreLinkClick: function (info) {
+      cal.changeView('timeGridDay', info.date);
+      document.querySelectorAll('#vista-btns button').forEach(b =>
+        b.classList.toggle('active', b.dataset.view === 'timeGridDay'));
       return 'stop';
     },
 
-    // Drag & drop → rescheduling
-    eventDrop: function (info) {
-      const avisoId   = info.event.id;
-      const nuevaFecha = info.event.start.toISOString().slice(0, 10);
-
-      fetch(`/calendario/api/eventos/${avisoId}/reschedule`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fecha_cita: nuevaFecha }),
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok) {
-          const fechaLeg = new Date(nuevaFecha + 'T12:00:00').toLocaleDateString('es-ES', {
-            weekday: 'long', day: 'numeric', month: 'long'
-          });
-          mostrarToast(`✅ Cita movida al ${fechaLeg}`, true);
-        } else {
-          info.revert();
-          mostrarToast('❌ ' + (data.error || 'No se pudo actualizar'), false);
-        }
-      })
-      .catch(() => {
-        info.revert();
-        mostrarToast('❌ Error de red al guardar', false);
-      });
+    // ── Click en cabecera de día → carga en panel Hoy ────────────────────
+    navLinkDayClick: function (date) {
+      const f = date.toISOString().slice(0,10);
+      cargarHoy(f);
+      cal.changeView('timeGridDay', date);
     },
+    navLinks: true,
 
-    // Click en día vacío → crear aviso con fecha pre-rellena
+    // ── Click en día vacío → crear aviso ────────────────────────────────
     dateClick: function (info) {
       if (!PUEDE_EDITAR) return;
-      const fecha = info.dateStr.slice(0, 10);
-      window.location.href = `/avisos/nuevo?fecha_cita=${fecha}`;
+      const f = info.dateStr.slice(0,10);
+      cargarHoy(f);   // actualiza el panel Hoy al clic
+      if (info.view.type !== 'timeGridDay') {
+        // Solo navega al día, sin abrir el formulario, salvo que sea en vista día
+        return;
+      }
+      window.location.href = `/avisos/nuevo?fecha_cita=${f}`;
     },
 
-    dayMaxEvents: 4,
+    // ── Al cambiar rango → actualizar panel Hoy con el primer día ───────
+    datesSet: function (info) {
+      const hoy = new Date().toISOString().slice(0,10);
+      const start = info.startStr.slice(0,10);
+      const end   = info.endStr.slice(0,10);
+      // Si hoy está en el rango visible, mostrar hoy; si no, el primer día
+      const usar = (hoy >= start && hoy < end) ? hoy : start;
+      cargarHoy(usar);
+    },
 
+    // ── Drag-drop ────────────────────────────────────────────────────────
+    eventDrop: function (info) {
+      const id      = info.event.id;
+      const nuevaF  = info.event.start.toISOString().slice(0,10);
+      fetch(`/calendario/api/eventos/${id}/reschedule`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha_cita: nuevaF }),
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          toast('✅ Cita movida al ' + new Date(nuevaF+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'}), true);
+          cargarHoy(fechaActiva);
+        } else { info.revert(); toast('❌ ' + (d.error||'Error'), false); }
+      })
+      .catch(() => { info.revert(); toast('❌ Error de red', false); });
+    },
+
+    // ── Celda de día ────────────────────────────────────────────────────
     dayCellDidMount: function (info) {
-      const hoy = new Date();
-      if (info.date.toDateString() === hoy.toDateString()) {
-        info.el.style.background = 'linear-gradient(135deg,#e8f4fd 0%,#dbeafe 100%)';
+      const hoy = new Date().toDateString();
+      if (info.date.toDateString() === hoy) {
+        info.el.style.background = 'linear-gradient(135deg,#e8f4fd,#dbeafe)';
       }
     },
   });
 
   cal.render();
 
-  // Botones de vista
+  // ── Botones de vista ─────────────────────────────────────────────────────
   document.querySelectorAll('#vista-btns button').forEach(btn => {
     btn.addEventListener('click', function() {
       document.querySelectorAll('#vista-btns button').forEach(b => b.classList.remove('active'));
@@ -401,86 +466,88 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  if (filtroTecnico) filtroTecnico.addEventListener('change', () => cal.refetchEvents());
-  if (filtroTipo)    filtroTipo.addEventListener('change',    () => cal.refetchEvents());
+  if (filtroTecnico) filtroTecnico.addEventListener('change', () => { cal.refetchEvents(); cargarHoy(fechaActiva); });
+  if (filtroTipo)    filtroTipo.addEventListener('change',    () => { cal.refetchEvents(); cargarHoy(fechaActiva); });
 });
 </script>
 
 <style>
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
 #calendario .fc-toolbar-title {
-  font-size: 1.15rem;
-  font-weight: 800;
-  text-transform: capitalize;
-  letter-spacing: -0.3px;
+  font-size: 1.1rem; font-weight: 800; text-transform: capitalize;
 }
+#calendario .fc-button {
+  border-radius: 6px !important; font-weight: 600; font-size: 0.82rem !important;
+}
+#calendario .fc-button-primary {
+  background: #0077b6 !important; border-color: #005f93 !important;
+}
+#calendario .fc-button-primary:hover { background: #005f93 !important; }
+
+/* ── Cabeceras de columna (días) ────────────────────────────────────────── */
+#calendario .fc-col-header-cell {
+  background: linear-gradient(135deg,#0077b6,#00b4d8);
+  color: #fff !important; font-weight: 700; padding: 5px 0;
+}
+#calendario .fc-col-header-cell a { color: #fff !important; }
+
+/* ── Slot de hora ────────────────────────────────────────────────────────── */
+#calendario .fc-timegrid-slot        { height: 2.4em; }
+#calendario .fc-timegrid-slot-label  { font-size: 0.72rem; font-weight: 600; color: #666; }
+#calendario .fc-timegrid-axis        { font-size: 0.72rem; }
+
+/* ── Indicador de hora actual ────────────────────────────────────────────── */
+#calendario .fc-timegrid-now-indicator-line {
+  border-color: #dc3545; border-width: 2px;
+}
+#calendario .fc-timegrid-now-indicator-arrow {
+  border-top-color: #dc3545; border-bottom-color: #dc3545;
+}
+
+/* ── Eventos ──────────────────────────────────────────────────────────────── */
 #calendario .fc-event {
   cursor: pointer;
-  border-radius: 6px;
-  border-left-width: 4px !important;
-  border-left-style: solid !important;
-  border-top: none !important;
-  border-right: none !important;
-  border-bottom: none !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  border-radius: 5px !important;
+  border: none !important;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.18);
   transition: box-shadow .15s, transform .15s;
 }
 #calendario .fc-event:hover {
-  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.28);
   transform: translateY(-1px);
 }
 #calendario .fc-event.fc-event-dragging {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  transform: scale(1.03);
-  opacity: .85;
+  transform: scale(1.02); opacity: .85;
 }
-#calendario .fc-otro-equipo {
-  opacity: 0.72;
-}
-.fc-otro-equipo-inner {
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 3px,
-    rgba(255,255,255,0.15) 3px,
-    rgba(255,255,255,0.15) 6px
-  );
-}
-#calendario .fc-daygrid-day-number { font-weight: 700; font-size: 0.9rem; }
-#calendario .fc-col-header-cell {
-  background: linear-gradient(135deg, #0077b6, #00b4d8);
-  font-weight: 700;
-  text-transform: capitalize;
-  color: #fff !important;
-  padding: 6px 0;
-}
-#calendario .fc-col-header-cell a { color: #fff !important; }
+
+/* ── Día de hoy ──────────────────────────────────────────────────────────── */
 #calendario .fc-day-today {
   background: linear-gradient(135deg,#e8f4fd,#dbeafe) !important;
 }
-#calendario .fc-button {
-  border-radius: 6px !important;
-  font-weight: 600;
-}
-#calendario .fc-button-primary {
-  background: #0077b6 !important;
-  border-color: #005f93 !important;
-}
-#calendario .fc-button-primary:hover { background: #005f93 !important; }
+#calendario .fc-daygrid-day-number { font-weight: 700; font-size: 0.88rem; }
+
+/* ── Vista mes ───────────────────────────────────────────────────────────── */
+#calendario .fc-more-link { font-weight: 700; color: #0077b6; font-size: 0.76rem; }
+
+/* ── Vista lista ─────────────────────────────────────────────────────────── */
 #calendario .fc-list-event:hover td { background: #f0f8ff; }
-#calendario .fc-daygrid-day:hover { background: rgba(13,110,253,.04); cursor: pointer; }
-#calendario .fc-more-link {
-  font-weight: 700;
-  color: #0077b6;
-  font-size: 0.78rem;
-}
-#calendario .fc-timegrid-slot { height: 2.2em; }
-.eb-cal-card { border-radius: 14px; overflow: hidden; }
-#modalHeader { transition: background .2s; }
-.eb-tecnico-badge:hover { filter: brightness(1.15); transform: scale(1.05); transition: all .1s; }
+#calendario .fc-list-day-cushion    { background: linear-gradient(135deg,#0077b6,#00b4d8); color:#fff; }
+#calendario .fc-list-day-text,
+#calendario .fc-list-day-side-text  { color: #fff !important; font-weight: 700; }
+
+/* ── Panel Hoy ───────────────────────────────────────────────────────────── */
+.hoy-item:hover { background: #f8f9fa; }
+.hoy-item { transition: background .1s; }
+
+/* ── Botón técnico ───────────────────────────────────────────────────────── */
+.eb-tecnico-row:hover { background: rgba(0,0,0,.04); border-radius: 6px; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 576px) {
-  #calendario .fc-toolbar { flex-direction: column; gap: 0.4rem; }
+  #calendario .fc-toolbar { flex-direction: column; gap: .3rem; }
   #calendario .fc-toolbar-chunk { display: flex; justify-content: center; }
-  #vista-btns { display: none; }
+  #vista-btns { order: -1; }
 }
 </style>
 {% endblock %}
