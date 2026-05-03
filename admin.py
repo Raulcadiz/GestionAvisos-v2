@@ -1,10 +1,10 @@
 from functools import wraps
-from flask import Blueprint, render_template, redirect, url_for, request, flash, abort
+from flask import Blueprint, render_template, redirect, url_for, request, flash, abort, jsonify
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash
 from sqlalchemy import func
 from extensions import db
-from models import User, Aviso
+from models import User, Aviso, PrecioInstalacion
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -188,3 +188,90 @@ def nuevo_tecnico_legacy():
 @admin_required
 def editar_tecnico_legacy(id):
     return redirect(url_for('admin.editar_tecnico', id=id))
+
+
+# ── Precios de instalación ─────────────────────────────────────────────────
+
+@admin_bp.route('/precios')
+@login_required
+@admin_required
+def precios():
+    items = PrecioInstalacion.query.order_by(PrecioInstalacion.orden, PrecioInstalacion.aparato).all()
+    return render_template('admin/precios.html', items=items)
+
+
+@admin_bp.route('/precios/nuevo', methods=['POST'])
+@login_required
+@admin_required
+def precio_nuevo():
+    aparato = request.form.get('aparato', '').strip()
+    desc    = request.form.get('descripcion', '').strip()
+    precio  = request.form.get('precio', '0').strip()
+    orden   = request.form.get('orden', '0').strip()
+    if not aparato:
+        flash('El nombre del aparato es obligatorio.', 'danger')
+        return redirect(url_for('admin.precios'))
+    try:
+        precio_f = float(precio)
+        orden_i  = int(orden)
+    except ValueError:
+        flash('Precio u orden inválido.', 'danger')
+        return redirect(url_for('admin.precios'))
+    item = PrecioInstalacion(
+        aparato=aparato,
+        descripcion=desc or None,
+        precio=precio_f,
+        orden=orden_i,
+        activo=True,
+    )
+    db.session.add(item)
+    db.session.commit()
+    flash(f'Precio "{aparato}" añadido.', 'success')
+    return redirect(url_for('admin.precios'))
+
+
+@admin_bp.route('/precios/<int:id>/editar', methods=['POST'])
+@login_required
+@admin_required
+def precio_editar(id):
+    item = PrecioInstalacion.query.get_or_404(id)
+    item.aparato     = request.form.get('aparato', item.aparato).strip()
+    item.descripcion = request.form.get('descripcion', '').strip() or None
+    try:
+        item.precio = float(request.form.get('precio', item.precio))
+        item.orden  = int(request.form.get('orden', item.orden))
+    except ValueError:
+        flash('Precio u orden inválido.', 'danger')
+        return redirect(url_for('admin.precios'))
+    item.activo = request.form.get('activo') == '1'
+    db.session.commit()
+    flash(f'Precio "{item.aparato}" actualizado.', 'success')
+    return redirect(url_for('admin.precios'))
+
+
+@admin_bp.route('/precios/<int:id>/eliminar', methods=['POST'])
+@login_required
+@admin_required
+def precio_eliminar(id):
+    item = PrecioInstalacion.query.get_or_404(id)
+    nombre = item.aparato
+    db.session.delete(item)
+    db.session.commit()
+    flash(f'Precio "{nombre}" eliminado.', 'warning')
+    return redirect(url_for('admin.precios'))
+
+
+@admin_bp.route('/precios/api')
+@login_required
+def precios_api():
+    """JSON con todos los precios activos, para el formulario de avisos."""
+    items = (PrecioInstalacion.query
+             .filter_by(activo=True)
+             .order_by(PrecioInstalacion.orden, PrecioInstalacion.aparato)
+             .all())
+    return jsonify([{
+        'id':          i.id,
+        'aparato':     i.aparato,
+        'descripcion': i.descripcion or '',
+        'precio':      i.precio,
+    } for i in items])

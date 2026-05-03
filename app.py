@@ -108,6 +108,11 @@ def _migrar_columnas():
                     sql += f" DEFAULT {default}"
                 conn.execute(text(sql))
 
+        if 'hora_cita' not in aviso_cols:
+            conn.execute(text("ALTER TABLE aviso ADD COLUMN hora_cita VARCHAR(5)"))
+        if 'items_instalacion' not in aviso_cols:
+            conn.execute(text("ALTER TABLE aviso ADD COLUMN items_instalacion TEXT"))
+
         conn.commit()
 
 

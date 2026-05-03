@@ -55,17 +55,27 @@ DEFAULTS = {
     'provider':            'ollama',
     'ollama_texto_model':  'llama3.2',
     'ollama_vision_model': 'llava',
-    'groq_model':          'llama3-8b-8192',
+    'groq_model':          'llama-3.1-8b-instant',
     'anthropic_model':     'claude-3-5-haiku-20241022',
     'openai_model':        'gpt-4o-mini',
 }
 
+# Modelos Groq activos (actualizados 2026 — ver console.groq.com/docs/models)
 GROQ_MODELS = [
-    ('llama3-8b-8192',       'Llama 3 8B — rapidísimo, gratis'),
-    ('llama3-70b-8192',      'Llama 3 70B — muy potente, gratis'),
-    ('mixtral-8x7b-32768',   'Mixtral 8x7B — contexto largo, gratis'),
-    ('gemma2-9b-it',         'Gemma 2 9B — Google, gratis'),
+    ('llama-3.1-8b-instant',        'Llama 3.1 8B — rapidísimo, gratis ⭐'),
+    ('llama-3.3-70b-versatile',     'Llama 3.3 70B — más potente, gratis'),
+    ('llama-3.2-11b-vision-preview','Llama 3.2 11B Vision — texto + imagen, gratis'),
+    ('llama-3.2-90b-vision-preview','Llama 3.2 90B Vision — visión potente, gratis'),
+    ('gemma2-9b-it',                'Gemma 2 9B — Google (puede estar deprecado)'),
 ]
+
+# Tabla de migración: modelos Groq antiguos → sustituto actual
+_GROQ_DEPRECATED = {
+    'llama3-8b-8192':    'llama-3.1-8b-instant',
+    'llama3-70b-8192':   'llama-3.3-70b-versatile',
+    'mixtral-8x7b-32768':'llama-3.3-70b-versatile',
+    'gemma-7b-it':       'llama-3.1-8b-instant',
+}
 
 ANTHROPIC_MODELS = [
     'claude-3-5-haiku-20241022',
@@ -102,7 +112,12 @@ def load_settings() -> dict:
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            return {**DEFAULTS, **data}
+            cfg = {**DEFAULTS, **data}
+            # Migrar modelos Groq deprecados automáticamente
+            if cfg.get('groq_model') in _GROQ_DEPRECATED:
+                cfg['groq_model'] = _GROQ_DEPRECATED[cfg['groq_model']]
+                save_settings(cfg)  # persiste la migración
+            return cfg
         except Exception:
             pass
     return dict(DEFAULTS)
@@ -188,19 +203,32 @@ def _llamar_ollama(texto: str, imagen_b64: str | None, cfg: dict) -> tuple[str, 
     return resp.message.content, model
 
 
-def _llamar_groq(texto: str, cfg: dict) -> tuple[str, str]:
-    """Groq no soporta visión — solo texto. Usa la API compatible con OpenAI."""
+def _llamar_groq(texto: str, imagen_b64: str | None, imagen_mt: str | None, cfg: dict) -> tuple[str, str]:
+    """Groq — texto y visión (modelos llama-3.2-*-vision-preview)."""
     from groq import Groq as _Groq
     api_key = os.environ.get('GROQ_API_KEY', '')
     if not api_key:
         raise RuntimeError("GROQ_API_KEY no configurada en .env")
     client = _Groq(api_key=api_key)
-    model  = cfg['groq_model']
+    model = cfg['groq_model']
+
+    # Soporte visión para modelos Groq que lo admiten
+    es_vision = 'vision' in model and imagen_b64 and imagen_mt
+    if es_vision:
+        user_content = [
+            {'type': 'text', 'text': texto},
+            {'type': 'image_url', 'image_url': {
+                'url': f'data:{imagen_mt};base64,{imagen_b64}',
+            }},
+        ]
+    else:
+        user_content = texto
+
     resp = client.chat.completions.create(
         model=model,
         messages=[
             {'role': 'system', 'content': SYSTEM_PROMPT},
-            {'role': 'user',   'content': texto},
+            {'role': 'user',   'content': user_content},
         ],
         max_tokens=1024,
         temperature=0.2,
@@ -327,8 +355,7 @@ def api_consulta():
         elif provider == 'openai':
             contenido, modelo_usado = _llamar_openai(texto_usuario, imagen_b64, imagen_mt, cfg)
         elif provider == 'groq':
-            # Groq no soporta visión — ignora imagen
-            contenido, modelo_usado = _llamar_groq(texto_usuario, cfg)
+            contenido, modelo_usado = _llamar_groq(texto_usuario, imagen_b64, imagen_mt, cfg)
         else:
             contenido, modelo_usado = _llamar_ollama(texto_usuario, imagen_b64, cfg)
 

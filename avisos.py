@@ -217,13 +217,16 @@ def create():
         )
 
         fecha_aviso_str = request.form.get('fecha_aviso', '')
-        fecha_cita_str = request.form.get('fecha_cita', '')
+        fecha_cita_str  = request.form.get('fecha_cita', '')
+        hora_cita_str   = request.form.get('hora_cita', '').strip()
         if fecha_aviso_str:
             from datetime import datetime
             aviso.fecha_aviso = datetime.strptime(fecha_aviso_str, '%Y-%m-%d').date()
         if fecha_cita_str:
             from datetime import datetime
             aviso.fecha_cita = datetime.strptime(fecha_cita_str, '%Y-%m-%d').date()
+        aviso.hora_cita = hora_cita_str or None
+        aviso.items_instalacion = request.form.get('items_instalacion_json', '').strip() or None
 
         if not aviso.nombre_cliente or not aviso.telefono:
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')
@@ -320,7 +323,8 @@ def edit(id):
             aviso.admin_asignado_id = int(admin_raw) if admin_raw.isdigit() else None
 
         fecha_aviso_str = request.form.get('fecha_aviso', '')
-        fecha_cita_str = request.form.get('fecha_cita', '')
+        fecha_cita_str  = request.form.get('fecha_cita', '')
+        hora_cita_str   = request.form.get('hora_cita', '').strip()
         if fecha_aviso_str:
             from datetime import datetime
             aviso.fecha_aviso = datetime.strptime(fecha_aviso_str, '%Y-%m-%d').date()
@@ -329,6 +333,10 @@ def edit(id):
             aviso.fecha_cita = datetime.strptime(fecha_cita_str, '%Y-%m-%d').date()
         elif request.form.get('limpiar_cita'):
             aviso.fecha_cita = None
+            aviso.hora_cita  = None
+        aviso.hora_cita = hora_cita_str or None
+        items_json = request.form.get('items_instalacion_json', '').strip()
+        aviso.items_instalacion = items_json or None
 
         if current_user.es_admin_o_superior and (not aviso.nombre_cliente or not aviso.telefono):
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')

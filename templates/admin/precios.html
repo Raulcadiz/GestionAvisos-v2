@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block title %}Precios de Instalación{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="fw-bold mb-0">💶 Tarifas de Instalación</h4>
+  <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline-secondary">← Equipo</a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="alert alert-{{ cat }} alert-dismissible fade show py-2">{{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<!-- Tabla de precios existentes -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header fw-semibold eb-card-header-blue d-flex justify-content-between align-items-center">
+    <span>⚡ Catálogo de precios</span>
+    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevo">
+      ➕ Añadir precio
+    </button>
+  </div>
+  <div class="card-body p-0">
+    {% if items %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3" style="width:36px">#</th>
+            <th>Aparato / Servicio</th>
+            <th>Descripción</th>
+            <th class="text-end">Precio (€)</th>
+            <th class="text-center">Activo</th>
+            <th class="text-center">Orden</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr class="{% if not item.activo %}table-secondary text-muted{% endif %}">
+            <td class="ps-3 text-muted small">{{ item.id }}</td>
+            <td class="fw-semibold">{{ item.aparato }}</td>
+            <td class="small text-muted">{{ item.descripcion or '—' }}</td>
+            <td class="text-end fw-bold text-success">{{ '%.2f'|format(item.precio) }} €</td>
+            <td class="text-center">
+              {% if item.activo %}
+                <span class="badge bg-success">Sí</span>
+              {% else %}
+                <span class="badge bg-secondary">No</span>
+              {% endif %}
+            </td>
+            <td class="text-center text-muted small">{{ item.orden }}</td>
+            <td class="text-end pe-3">
+              <button class="btn btn-sm btn-outline-primary me-1"
+                      data-bs-toggle="modal"
+                      data-bs-target="#modalEditar{{ item.id }}">
+                ✏️
+              </button>
+              <form method="POST" action="{{ url_for('admin.precio_eliminar', id=item.id) }}"
+                    class="d-inline"
+                    onsubmit="return confirm('¿Eliminar este precio?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <div class="fs-1 mb-2">💶</div>
+      <p>No hay precios configurados aún.</p>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevo">
+        ➕ Añadir el primero
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal: Nuevo precio -->
+<div class="modal fade" id="modalNuevo" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{{ url_for('admin.precio_nuevo') }}">
+        <div class="modal-header eb-card-header-blue">
+          <h5 class="modal-title fw-bold">➕ Nuevo precio</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Aparato / Servicio <span class="text-danger">*</span></label>
+            <input type="text" name="aparato" class="form-control" required
+                   placeholder="Ej: Lavadora, Lavavajillas, Aire acondicionado...">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Descripción</label>
+            <input type="text" name="descripcion" class="form-control"
+                   placeholder="Ej: Instalación estándar con toma existente">
+          </div>
+          <div class="row g-3">
+            <div class="col-8">
+              <label class="form-label fw-semibold">Precio (€) <span class="text-danger">*</span></label>
+              <input type="number" name="precio" class="form-control" step="0.01" min="0"
+                     placeholder="0.00" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold">Orden</label>
+              <input type="number" name="orden" class="form-control" value="0" min="0">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-success fw-semibold">✅ Añadir precio</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modales de edición -->
+{% for item in items %}
+<div class="modal fade" id="modalEditar{{ item.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{{ url_for('admin.precio_editar', id=item.id) }}">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold">✏️ Editar: {{ item.aparato }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Aparato / Servicio</label>
+            <input type="text" name="aparato" class="form-control" value="{{ item.aparato }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Descripción</label>
+            <input type="text" name="descripcion" class="form-control" value="{{ item.descripcion or '' }}">
+          </div>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Precio (€)</label>
+              <input type="number" name="precio" class="form-control" step="0.01" min="0"
+                     value="{{ '%.2f'|format(item.precio) }}" required>
+            </div>
+            <div class="col-3">
+              <label class="form-label fw-semibold">Orden</label>
+              <input type="number" name="orden" class="form-control" value="{{ item.orden }}" min="0">
+            </div>
+            <div class="col-3">
+              <label class="form-label fw-semibold">Activo</label>
+              <select name="activo" class="form-select">
+                <option value="1" {% if item.activo %}selected{% endif %}>Sí</option>
+                <option value="0" {% if not item.activo %}selected{% endif %}>No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary fw-semibold">💾 Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

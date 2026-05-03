@@ -132,7 +132,7 @@
               <input type="date" name="fecha_aviso" class="form-control"
                      value="{{ aviso.fecha_aviso.strftime('%Y-%m-%d') if aviso and aviso.fecha_aviso else '' }}">
             </div>
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
               <label class="form-label">Fecha de cita</label>
               <input type="date" name="fecha_cita" class="form-control"
                      value="{{ aviso.fecha_cita.strftime('%Y-%m-%d') if aviso and aviso.fecha_cita else prefill_fecha_cita|default('') }}">
@@ -142,6 +142,11 @@
                 <label class="form-check-label small text-muted" for="limpiar_cita">Quitar fecha de cita</label>
               </div>
               {% endif %}
+            </div>
+            <div class="col-12 col-md-1">
+              <label class="form-label">Hora</label>
+              <input type="time" name="hora_cita" class="form-control"
+                     value="{{ aviso.hora_cita if aviso and aviso.hora_cita else '' }}">
             </div>
             <div class="col-12 col-md-4">
               <label class="form-label">Estado</label>
@@ -155,6 +160,69 @@
               </select>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selector de precios de instalación (visible solo cuando tipo = instalacion) -->
+    <div class="col-12" id="panel-precios-instalacion" style="display:none">
+      <div class="card shadow-sm border-0 border-start border-4 border-warning">
+        <div class="card-header fw-semibold bg-warning text-dark d-flex justify-content-between align-items-center">
+          <span>⚡ Artículos de instalación</span>
+          <a href="{{ url_for('admin.precios') }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Gestionar tarifas">
+            ⚙️ Tarifas
+          </a>
+        </div>
+        <div class="card-body">
+
+          <!-- Campo de búsqueda en catálogo -->
+          <div class="input-group mb-3">
+            <span class="input-group-text">🔍</span>
+            <input type="text" id="buscar-precio" class="form-control"
+                   placeholder="Buscar aparato en el catálogo...">
+          </div>
+
+          <!-- Lista del catálogo -->
+          <div id="catalogo-precios" class="row g-2 mb-3"></div>
+
+          <!-- Artículos seleccionados (carrito) -->
+          <div id="carrito-wrap" style="display:none">
+            <hr class="my-2">
+            <h6 class="fw-bold mb-2">🛒 Artículos seleccionados</h6>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-2" id="tabla-carrito">
+                <thead class="table-light">
+                  <tr>
+                    <th>Aparato</th>
+                    <th class="text-center" style="width:80px">Cant.</th>
+                    <th class="text-end" style="width:90px">Precio</th>
+                    <th class="text-end" style="width:90px">Total</th>
+                    <th style="width:36px"></th>
+                  </tr>
+                </thead>
+                <tbody id="carrito-body"></tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3" class="text-end fw-bold">Total instalación:</td>
+                    <td class="text-end fw-bold text-success fs-6" id="carrito-total">0,00 €</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="aplicar-al-precio" checked>
+                <label class="form-check-label small" for="aplicar-al-precio">
+                  Aplicar total a <strong>Mano de obra</strong>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input oculto con los items serializados -->
+          <input type="hidden" name="items_instalacion_json" id="items-instalacion-json"
+                 value="{{ aviso.items_instalacion if aviso else '' }}">
         </div>
       </div>
     </div>
@@ -349,13 +417,168 @@
 
 {% block scripts %}
 <script>
-// Selector visual de tipo de servicio
+// ── Selector visual de tipo de servicio ───────────────────────────────────
 document.querySelectorAll('.eb-tipo-btn').forEach(label => {
   label.addEventListener('click', function() {
     document.querySelectorAll('.eb-tipo-btn').forEach(l => l.classList.remove('active'));
     this.classList.add('active');
+    actualizarPanelPrecios();
   });
 });
+
+// ── Panel de precios de instalación ───────────────────────────────────────
+let catalogoCache  = null;
+let carritoItems   = [];  // [{id, aparato, precio_unit, cantidad}]
+
+function tipoActivo() {
+  const r = document.querySelector('input[name="tipo_servicio"]:checked');
+  return r ? r.value : 'reparacion';
+}
+
+function actualizarPanelPrecios() {
+  const panel = document.getElementById('panel-precios-instalacion');
+  if (!panel) return;
+  if (tipoActivo() === 'instalacion') {
+    panel.style.display = '';
+    if (!catalogoCache) cargarCatalogo();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function cargarCatalogo() {
+  fetch('/admin/precios/api')
+    .then(r => r.json())
+    .then(data => {
+      catalogoCache = data;
+      renderCatalogo(data);
+    })
+    .catch(() => {
+      document.getElementById('catalogo-precios').innerHTML =
+        '<p class="text-muted small">No se pudo cargar el catálogo.</p>';
+    });
+}
+
+function renderCatalogo(items) {
+  const cont = document.getElementById('catalogo-precios');
+  if (!items.length) {
+    cont.innerHTML = '<p class="text-muted small col-12">No hay precios configurados. <a href="/admin/precios" target="_blank">Añadir tarifas →</a></p>';
+    return;
+  }
+  cont.innerHTML = items.map(item => `
+    <div class="col-12 col-sm-6 col-md-4 catalogo-item" data-nombre="${item.aparato.toLowerCase()}">
+      <div class="card card-body py-2 px-3 d-flex flex-row align-items-center gap-2 border"
+           style="cursor:pointer" onclick="agregarItem(${item.id},'${escHtml(item.aparato)}',${item.precio})">
+        <div class="flex-grow-1">
+          <div class="fw-semibold small">⚡ ${escHtml(item.aparato)}</div>
+          ${item.descripcion ? `<div class="text-muted" style="font-size:0.72rem">${escHtml(item.descripcion)}</div>` : ''}
+        </div>
+        <span class="badge bg-success rounded-pill">${fmtEur(item.precio)}</span>
+      </div>
+    </div>`).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtEur(n) { return n.toFixed(2).replace('.',',') + ' €'; }
+
+// Búsqueda en catálogo
+document.getElementById('buscar-precio')?.addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.catalogo-item').forEach(el => {
+    el.style.display = el.dataset.nombre.includes(q) ? '' : 'none';
+  });
+});
+
+function agregarItem(id, aparato, precio) {
+  const existe = carritoItems.find(i => i.id === id);
+  if (existe) {
+    existe.cantidad++;
+  } else {
+    carritoItems.push({ id, aparato, precio_unit: precio, cantidad: 1 });
+  }
+  renderCarrito();
+}
+
+function quitarItem(id) {
+  carritoItems = carritoItems.filter(i => i.id !== id);
+  renderCarrito();
+}
+
+function cambiarCantidad(id, val) {
+  const item = carritoItems.find(i => i.id === id);
+  if (!item) return;
+  item.cantidad = Math.max(1, parseInt(val) || 1);
+  renderCarrito();
+}
+
+function renderCarrito() {
+  const wrap   = document.getElementById('carrito-wrap');
+  const tbody  = document.getElementById('carrito-body');
+  const elTotal = document.getElementById('carrito-total');
+  const jsonEl  = document.getElementById('items-instalacion-json');
+
+  if (!carritoItems.length) {
+    wrap.style.display = 'none';
+    jsonEl.value = '';
+    sincronizarPrecio(0);
+    return;
+  }
+
+  wrap.style.display = '';
+  let total = 0;
+  tbody.innerHTML = carritoItems.map(item => {
+    const subtotal = item.precio_unit * item.cantidad;
+    total += subtotal;
+    return `<tr>
+      <td class="small fw-semibold">⚡ ${escHtml(item.aparato)}</td>
+      <td class="text-center">
+        <input type="number" min="1" value="${item.cantidad}" style="width:60px"
+               class="form-control form-control-sm text-center p-1"
+               onchange="cambiarCantidad(${item.id}, this.value)">
+      </td>
+      <td class="text-end small">${fmtEur(item.precio_unit)}</td>
+      <td class="text-end fw-bold text-success">${fmtEur(subtotal)}</td>
+      <td class="text-center">
+        <button type="button" class="btn btn-sm btn-outline-danger p-0 lh-1"
+                style="width:22px;height:22px" onclick="quitarItem(${item.id})">×</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  elTotal.textContent = fmtEur(total);
+  jsonEl.value = JSON.stringify(carritoItems);
+  sincronizarPrecio(total);
+}
+
+function sincronizarPrecio(total) {
+  const chk = document.getElementById('aplicar-al-precio');
+  if (chk && chk.checked) {
+    const campo = document.querySelector('[name=precio_mano_obra]');
+    if (campo) {
+      campo.value = total > 0 ? total.toFixed(2) : '';
+      calcTotales();
+    }
+  }
+}
+
+// Cargar items guardados al editar
+(function restaurarCarrito() {
+  const jsonEl = document.getElementById('items-instalacion-json');
+  if (!jsonEl || !jsonEl.value) return;
+  try {
+    carritoItems = JSON.parse(jsonEl.value);
+    // Necesitamos el catálogo para mostrar el carrito, cargarlo y luego renderizar
+    fetch('/admin/precios/api')
+      .then(r => r.json())
+      .then(data => { catalogoCache = data; renderCatalogo(data); renderCarrito(); })
+      .catch(() => renderCarrito());
+  } catch(e) { /* JSON inválido, ignorar */ }
+})();
+
+// Mostrar/ocultar panel según el tipo seleccionado al cargar
+actualizarPanelPrecios();
 
 // Cálculo totales en tiempo real
 function calcTotales() {

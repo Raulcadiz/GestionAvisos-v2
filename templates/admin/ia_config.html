@@ -61,7 +61,7 @@
                 {% if groq_key_ok %}API key OK{% else %}Sin API key{% endif %}
               </span>
             </div>
-            <div class="small text-muted">Llama 3, Mixtral y Gemma con latencia mínima. Sin soporte de imágenes. Requiere <code>GROQ_API_KEY</code>.</div>
+            <div class="small text-muted">Llama 3.1/3.3, visión con Llama 3.2 Vision. Ultra-rápido. Requiere <code>GROQ_API_KEY</code> (gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a>).</div>
           </div>
         </label>
 
@@ -170,7 +170,7 @@
           {% endfor %}
         </select>
         <div class="form-text mt-1">
-          Groq no soporta análisis de imágenes. La foto se ignorará si se selecciona Groq.<br>
+          Los modelos <code>llama-3.2-*-vision-preview</code> analizan imágenes. Los demás ignoran la foto.<br>
           Consigue tu API key gratis en <a href="https://console.groq.com" target="_blank">console.groq.com</a>.
         </div>
       </div>

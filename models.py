@@ -142,6 +142,10 @@ class Aviso(db.Model):
     # Fechas
     fecha_aviso = db.Column(db.Date, nullable=False, default=date.today)
     fecha_cita  = db.Column(db.Date, nullable=True)
+    hora_cita   = db.Column(db.String(5), nullable=True)  # "HH:MM"
+
+    # Artículos de instalación (JSON)
+    items_instalacion = db.Column(db.Text, nullable=True)
 
     # Estado del aviso
     estado = db.Column(db.String(30), nullable=False, default='pendiente', index=True)
@@ -264,6 +268,19 @@ class Aviso(db.Model):
 @event.listens_for(Aviso, 'before_update')
 def update_timestamp(mapper, connection, target):
     target.updated_at = datetime.utcnow()
+
+
+class PrecioInstalacion(db.Model):
+    """Catálogo de precios para instalaciones."""
+    __tablename__ = 'precio_instalacion'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    aparato     = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.String(250))
+    precio      = db.Column(db.Float, nullable=False, default=0.0)
+    activo      = db.Column(db.Boolean, default=True)
+    orden       = db.Column(db.Integer, default=0)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Photo(db.Model):

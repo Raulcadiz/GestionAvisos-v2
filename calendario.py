@@ -50,6 +50,7 @@ def api_eventos():
     end_str     = request.args.get('end', '')
     tecnico_id  = request.args.get('tecnico_id', type=int)
     tipo_filter = request.args.get('tipo', '')
+    ver_todos   = request.args.get('todos', '0') == '1'  # admins pueden ver todos los equipos
 
     try:
         start = datetime.fromisoformat(start_str[:10]).date()
@@ -70,7 +71,7 @@ def api_eventos():
         ))
     elif tecnico_id:
         q = q.filter(Aviso.asignado_a == tecnico_id)
-    elif not current_user.es_super_admin:
+    elif not current_user.es_super_admin and not ver_todos:
         # Admin regular: solo su equipo
         equipo_ids = [u.id for u in User.query.filter_by(creado_por_id=current_user.id).all()]
         equipo_ids.append(current_user.id)
@@ -78,11 +79,19 @@ def api_eventos():
             Aviso.asignado_a.in_(equipo_ids),
             Aviso.created_by == current_user.id,
         ))
+    # si ver_todos==True o es super_admin sin filtro: no hay restricción adicional
 
     if tipo_filter:
         q = q.filter_by(tipo_servicio=tipo_filter)
 
-    avisos = q.order_by(Aviso.fecha_cita).all()
+    avisos = q.order_by(Aviso.fecha_cita, Aviso.hora_cita).all()
+
+    # IDs del equipo propio (para marcar avisos de otros admins)
+    if current_user.es_admin and not current_user.es_super_admin:
+        mi_equipo = {u.id for u in User.query.filter_by(creado_por_id=current_user.id).all()}
+        mi_equipo.add(current_user.id)
+    else:
+        mi_equipo = None  # super_admin: sin distinción
 
     eventos = []
     for a in avisos:
@@ -95,16 +104,36 @@ def api_eventos():
         titulo = f'{icono} {calle_titulo}'
 
         tecnico_nombre = a.tecnico.display_name if a.tecnico else ''
-        tecnico_id     = a.asignado_a or 0
+        tid            = a.asignado_a or 0
+
+        # Si el aviso es de otro equipo, indicarlo visualmente
+        es_otro_equipo = (
+            mi_equipo is not None and
+            a.asignado_a is not None and
+            a.asignado_a not in mi_equipo
+        )
+        if es_otro_equipo:
+            border = '#adb5bd'
+            text   = text if text == '#ffffff' else '#555'
+
+        # Fecha+hora para FullCalendar (si hay hora la incluye)
+        start_iso = a.fecha_cita.isoformat()
+        if a.hora_cita:
+            start_iso = f'{start_iso}T{a.hora_cita}:00'
+
+        admin_nombre = ''
+        if a.admin_asignado:
+            admin_nombre = a.admin_asignado.display_name
 
         eventos.append({
             'id':              a.id,
             'title':           titulo,
-            'start':           a.fecha_cita.isoformat(),
+            'start':           start_iso,
             'url':             f'/avisos/{a.id}',
             'backgroundColor': bg,
             'borderColor':     border,
             'textColor':       text,
+            'classNames':      ['fc-otro-equipo'] if es_otro_equipo else [],
             'extendedProps': {
                 'estado':           a.estado_label(),
                 'nombre_cliente':   a.nombre_cliente,
@@ -113,11 +142,14 @@ def api_eventos():
                 'electrodomestico': a.electrodomestico or '',
                 'marca':            a.marca or '',
                 'tecnico':          tecnico_nombre,
-                'tecnico_id':       tecnico_id,
+                'tecnico_id':       tid,
+                'hora_cita':        a.hora_cita or '',
                 'localidad':        a.localidad or '',
                 'tipo_servicio':    a.tipo_servicio_label(),
                 'tipo_icon':        icono,
                 'origen':           a.origen_label(),
+                'es_otro_equipo':   es_otro_equipo,
+                'admin_nombre':     admin_nombre,
             },
         })
 

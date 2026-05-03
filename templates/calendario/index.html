@@ -8,7 +8,7 @@
   <div class="d-flex flex-wrap gap-2 align-items-center">
     {% if current_user.es_admin %}
     <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:165px">
-      <option value="">👥 Todos los técnicos</option>
+      <option value="">👥 Todos mis técnicos</option>
       {% for t in tecnicos %}
       <option value="{{ t.id }}">{{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name or t.username }}</option>
       {% endfor %}
@@ -21,6 +21,13 @@
       <option value="instalacion">⚡ Instalación</option>
       <option value="reparto">📦 Reparto</option>
     </select>
+
+    {% if current_user.es_admin and not current_user.es_super_admin %}
+    <div class="form-check form-switch mb-0 ms-1">
+      <input class="form-check-input" type="checkbox" id="toggle-todos" style="cursor:pointer">
+      <label class="form-check-label small fw-semibold" for="toggle-todos">Ver todos</label>
+    </div>
+    {% endif %}
 
     <div class="btn-group btn-group-sm" role="group" id="vista-btns">
       <button class="btn btn-outline-secondary active" data-view="dayGridMonth">Mes</button>
@@ -48,18 +55,27 @@
   {% endif %}
 </div>
 
-<!-- Leyenda técnicos (solo admin con técnicos) -->
+<!-- Leyenda técnicos con contador -->
 {% if current_user.es_admin and tecnicos %}
 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" id="leyenda-tecnicos">
   <span class="small text-muted fw-semibold me-1">Técnicos:</span>
   {% set colores = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'] %}
   {% for t in tecnicos %}
-  <span class="badge rounded-pill px-2 py-1"
-        style="background:{{ colores[loop.index0 % colores|length] }};color:#fff;font-size:0.75rem"
-        data-tecnico-id="{{ t.id }}">
+  <span class="badge rounded-pill px-2 py-1 eb-tecnico-badge"
+        style="background:{{ colores[loop.index0 % colores|length] }};color:#fff;font-size:0.75rem;cursor:pointer"
+        data-tecnico-id="{{ t.id }}"
+        title="Filtrar por {{ t.display_name }}">
     {{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name }}
+    <span class="eb-contador ms-1 opacity-75" data-id="{{ t.id }}"></span>
   </span>
   {% endfor %}
+</div>
+{% endif %}
+
+<!-- Alerta "ver todos" para admins -->
+{% if current_user.es_admin and not current_user.es_super_admin %}
+<div id="alerta-todos" class="alert alert-info alert-sm py-1 px-3 d-none mb-2 small">
+  <strong>ℹ️ Modo «Ver todos»</strong> — Ves las citas de <em>todos los equipos</em>. Los avisos de otros admins aparecen con borde gris y sin poder editarlos.
 </div>
 {% endif %}
 
@@ -71,7 +87,7 @@
 
 <!-- Modal detalle rápido -->
 <div class="modal fade" id="modalEvento" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-sm">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
     <div class="modal-content border-0 shadow-lg">
       <div class="modal-header py-2 px-3" id="modalHeader">
         <div class="flex-grow-1">
@@ -85,6 +101,19 @@
         <a id="modalEnlace" href="#" class="btn btn-primary btn-sm flex-grow-1">Ver aviso →</a>
         <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal lista del día -->
+<div class="modal fade" id="modalDia" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:420px">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header eb-card-header-blue py-2 px-3">
+        <h6 class="modal-title fw-bold mb-0" id="modalDiaTitulo">📅 Citas del día</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-2" id="modalDiaCuerpo"></div>
     </div>
   </div>
 </div>
@@ -107,8 +136,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const calEl         = document.getElementById('calendario');
   const modal         = new bootstrap.Modal(document.getElementById('modalEvento'));
+  const modalDia      = new bootstrap.Modal(document.getElementById('modalDia'));
   const filtroTecnico = document.getElementById('filtro-tecnico');
   const filtroTipo    = document.getElementById('filtro-tipo');
+  const toggleTodos   = document.getElementById('toggle-todos');
+  const alertaTodos   = document.getElementById('alerta-todos');
   const toastEl       = document.getElementById('toastDrag');
   const toastMsg      = document.getElementById('toastDragMsg');
   const bsToast       = new bootstrap.Toast(toastEl, { delay: 3000 });
@@ -124,10 +156,30 @@ document.addEventListener('DOMContentLoaded', function () {
     mapaColorTecnico[el.dataset.tecnicoId] = COLORES_TECNICOS[i % COLORES_TECNICOS.length];
   });
 
+  // Click en badge de técnico filtra el calendario
+  document.querySelectorAll('.eb-tecnico-badge').forEach(el => {
+    el.addEventListener('click', function() {
+      const tid = this.dataset.tecnicoId;
+      if (filtroTecnico) {
+        filtroTecnico.value = filtroTecnico.value === tid ? '' : tid;
+        cal.refetchEvents();
+      }
+    });
+  });
+
+  // Toggle "ver todos"
+  if (toggleTodos) {
+    toggleTodos.addEventListener('change', function() {
+      if (alertaTodos) alertaTodos.classList.toggle('d-none', !this.checked);
+      cal.refetchEvents();
+    });
+  }
+
   function buildUrl(info) {
     const tid  = filtroTecnico ? filtroTecnico.value : '';
-    const tipo = filtroTipo ? filtroTipo.value : '';
-    let url = `/calendario/api/eventos?start=${info.startStr}&end=${info.endStr}`;
+    const tipo = filtroTipo    ? filtroTipo.value    : '';
+    const todos = (toggleTodos && toggleTodos.checked) ? '1' : '0';
+    let url = `/calendario/api/eventos?start=${info.startStr}&end=${info.endStr}&todos=${todos}`;
     if (tid)  url += `&tecnico_id=${tid}`;
     if (tipo) url += `&tipo=${tipo}`;
     return url;
@@ -139,6 +191,19 @@ document.addEventListener('DOMContentLoaded', function () {
     bsToast.show();
   }
 
+  // Actualizar contadores de técnicos en leyenda
+  function actualizarContadores(eventos) {
+    const contadores = {};
+    eventos.forEach(e => {
+      const tid = e.extendedProps && e.extendedProps.tecnico_id;
+      if (tid) contadores[tid] = (contadores[tid] || 0) + 1;
+    });
+    document.querySelectorAll('.eb-contador').forEach(el => {
+      const cnt = contadores[el.dataset.id] || 0;
+      el.textContent = cnt > 0 ? `(${cnt})` : '';
+    });
+  }
+
   const cal = new FullCalendar.Calendar(calEl, {
     locale: 'es',
     initialView: 'dayGridMonth',
@@ -147,7 +212,6 @@ document.addEventListener('DOMContentLoaded', function () {
     eventDisplay: 'block',
     nowIndicator: true,
 
-    // ── Drag & drop ────────────────────────────────────────────────
     editable: PUEDE_EDITAR,
     droppable: false,
 
@@ -159,30 +223,49 @@ document.addEventListener('DOMContentLoaded', function () {
     buttonText: { today: 'Hoy' },
 
     views: {
-      timeGridWeek: { titleFormat: { month: 'short', day: 'numeric' } },
-      timeGridDay:  { titleFormat: { weekday: 'long', day: 'numeric', month: 'long' } },
+      timeGridWeek: {
+        titleFormat: { month: 'short', day: 'numeric' },
+        slotMinTime: '07:00:00',
+        slotMaxTime: '21:00:00',
+        slotDuration: '00:30:00',
+      },
+      timeGridDay: {
+        titleFormat: { weekday: 'long', day: 'numeric', month: 'long' },
+        slotMinTime: '07:00:00',
+        slotMaxTime: '21:00:00',
+        slotDuration: '00:30:00',
+      },
     },
 
     events: function (fetchInfo, success, failure) {
       fetch(buildUrl(fetchInfo))
         .then(r => r.json())
-        .then(data => success(data))
+        .then(data => {
+          actualizarContadores(data);
+          success(data);
+        })
         .catch(err => failure(err));
     },
 
-    // Contenido del evento
+    // Contenido del evento con más info
     eventContent: function(arg) {
       const props = arg.event.extendedProps;
       const tecnico = props.tecnico || '';
+      const hora = props.hora_cita || '';
+      const otroEquipo = props.es_otro_equipo;
+      const adminTag = otroEquipo && props.admin_nombre
+        ? `<div style="font-size:0.62rem;opacity:0.75">🔑 ${props.admin_nombre}</div>` : '';
       return {
-        html: `<div class="fc-event-inner" style="padding:1px 3px;overflow:hidden">
+        html: `<div class="fc-event-inner${otroEquipo ? ' fc-otro-equipo-inner' : ''}" style="padding:2px 4px;overflow:hidden">
+          ${hora ? `<div style="font-size:0.65rem;opacity:0.85;font-weight:700">${hora}</div>` : ''}
           <div class="fw-semibold text-truncate" style="font-size:0.78rem">${arg.event.title}</div>
           ${tecnico ? `<div style="font-size:0.68rem;opacity:0.9">👤 ${tecnico}</div>` : ''}
+          ${adminTag}
         </div>`
       };
     },
 
-    // ── Click en evento → modal detalle ────────────────────────────
+    // Click en evento → modal
     eventClick: function (info) {
       info.jsEvent.preventDefault();
       const ev    = info.event;
@@ -207,7 +290,8 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       let html = `<table class="table table-sm mb-0 small">
-        <tr><th class="text-muted pe-2" style="width:36%">📅 Fecha</th><td class="fw-semibold">${fecha}</td></tr>
+        <tr><th class="text-muted pe-2" style="width:36%">📅 Fecha</th>
+            <td class="fw-semibold">${fecha}${props.hora_cita ? ' · ' + props.hora_cita : ''}</td></tr>
         <tr><th class="text-muted">${props.tipo_icon} Tipo</th><td>${props.tipo_servicio}</td></tr>
         <tr><th class="text-muted">📋 Estado</th><td><span class="badge bg-secondary">${props.estado}</span></td></tr>`;
       if (props.localidad)
@@ -218,18 +302,52 @@ document.addEventListener('DOMContentLoaded', function () {
         html += `<tr><th class="text-muted">📞 Tlf</th><td><a href="tel:${props.telefono}" class="fw-semibold text-success text-decoration-none">${props.telefono}</a></td></tr>`;
       if (props.tecnico)
         html += `<tr><th class="text-muted">👤 Técnico</th><td class="fw-semibold">${props.tecnico}</td></tr>`;
+      if (props.es_otro_equipo && props.admin_nombre)
+        html += `<tr><th class="text-muted">🔑 Admin</th><td class="text-muted fst-italic">${props.admin_nombre}</td></tr>`;
       if (props.origen && props.origen !== 'Particular')
         html += `<tr><th class="text-muted">🏪 Origen</th><td>${props.origen}</td></tr>`;
       html += `</table>`;
+      if (props.es_otro_equipo)
+        html += `<div class="alert alert-light py-1 px-2 mt-2 mb-0 small text-muted">Solo lectura — aviso de otro equipo</div>`;
 
       document.getElementById('modalCuerpo').innerHTML = html;
       document.getElementById('modalEnlace').href = ev.url;
       modal.show();
     },
 
-    // ── Drag & drop → rescheduling ──────────────────────────────────
+    // Click en +N eventos → modal lista del día
+    moreLinkClick: function(info) {
+      const fecha = info.date.toLocaleDateString('es-ES', {
+        weekday: 'long', day: 'numeric', month: 'long'
+      });
+      document.getElementById('modalDiaTitulo').textContent = '📅 ' + fecha;
+      let html = '<div class="list-group list-group-flush">';
+      info.allSegs.forEach(seg => {
+        const ev = seg.event;
+        const p  = ev.extendedProps;
+        const hora = p.hora_cita ? `<span class="badge bg-light text-dark me-2">${p.hora_cita}</span>` : '';
+        html += `<a href="${ev.url}" class="list-group-item list-group-item-action py-2 px-3"
+                    style="border-left:4px solid ${ev.backgroundColor}">
+          <div class="d-flex align-items-start gap-2">
+            <div class="flex-grow-1">
+              <div class="fw-semibold small">${hora}${ev.title}</div>
+              ${p.nombre_cliente && p.calle ? `<div class="text-muted" style="font-size:0.75rem">👤 ${p.nombre_cliente}</div>` : ''}
+              ${p.tecnico ? `<div class="text-muted" style="font-size:0.75rem">🔧 ${p.tecnico}</div>` : ''}
+              ${p.telefono ? `<a href="tel:${p.telefono}" class="text-success" style="font-size:0.75rem">📞 ${p.telefono}</a>` : ''}
+            </div>
+            <span class="badge rounded-pill" style="background:${ev.backgroundColor};color:${ev.textColor || '#000'};font-size:0.7rem">${p.estado}</span>
+          </div>
+        </a>`;
+      });
+      html += '</div>';
+      document.getElementById('modalDiaCuerpo').innerHTML = html;
+      modalDia.show();
+      return 'stop';
+    },
+
+    // Drag & drop → rescheduling
     eventDrop: function (info) {
-      const avisoId  = info.event.id;
+      const avisoId   = info.event.id;
       const nuevaFecha = info.event.start.toISOString().slice(0, 10);
 
       fetch(`/calendario/api/eventos/${avisoId}/reschedule`, {
@@ -255,14 +373,14 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     },
 
-    // ── Click en día vacío → crear aviso con fecha pre-rellena ──────
+    // Click en día vacío → crear aviso con fecha pre-rellena
     dateClick: function (info) {
       if (!PUEDE_EDITAR) return;
       const fecha = info.dateStr.slice(0, 10);
       window.location.href = `/avisos/nuevo?fecha_cita=${fecha}`;
     },
 
-    dayMaxEvents: 5,
+    dayMaxEvents: 4,
 
     dayCellDidMount: function (info) {
       const hoy = new Date();
@@ -297,19 +415,35 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 #calendario .fc-event {
   cursor: pointer;
-  border-radius: 5px;
-  border: none !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+  border-radius: 6px;
+  border-left-width: 4px !important;
+  border-left-style: solid !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   transition: box-shadow .15s, transform .15s;
 }
 #calendario .fc-event:hover {
-  box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.25);
   transform: translateY(-1px);
 }
 #calendario .fc-event.fc-event-dragging {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   transform: scale(1.03);
   opacity: .85;
+}
+#calendario .fc-otro-equipo {
+  opacity: 0.72;
+}
+.fc-otro-equipo-inner {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(255,255,255,0.15) 3px,
+    rgba(255,255,255,0.15) 6px
+  );
 }
 #calendario .fc-daygrid-day-number { font-weight: 700; font-size: 0.9rem; }
 #calendario .fc-col-header-cell {
@@ -334,8 +468,15 @@ document.addEventListener('DOMContentLoaded', function () {
 #calendario .fc-button-primary:hover { background: #005f93 !important; }
 #calendario .fc-list-event:hover td { background: #f0f8ff; }
 #calendario .fc-daygrid-day:hover { background: rgba(13,110,253,.04); cursor: pointer; }
+#calendario .fc-more-link {
+  font-weight: 700;
+  color: #0077b6;
+  font-size: 0.78rem;
+}
+#calendario .fc-timegrid-slot { height: 2.2em; }
 .eb-cal-card { border-radius: 14px; overflow: hidden; }
 #modalHeader { transition: background .2s; }
+.eb-tecnico-badge:hover { filter: brightness(1.15); transform: scale(1.05); transition: all .1s; }
 @media (max-width: 576px) {
   #calendario .fc-toolbar { flex-direction: column; gap: 0.4rem; }
   #calendario .fc-toolbar-chunk { display: flex; justify-content: center; }
