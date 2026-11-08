@@ -8,10 +8,21 @@
   {% else %}border-warning{% endif %}">
   <div class="card-body py-2">
     <div class="d-flex justify-content-between align-items-start">
+      {% if seleccionable|default(false) %}
+      <div class="me-2 pt-1">
+        {% if puede_editar_aviso %}
+        <input type="checkbox" class="form-check-input aviso-check" value="{{ aviso.id }}"
+               aria-label="Seleccionar aviso {{ aviso.id }}">
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="flex-grow-1">
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <span class="fw-bold">{{ aviso.nombre_cliente }}</span>
           <span class="badge {{ badge_class }}">{{ aviso.estado_label() }}</span>
+          {% if aviso.atrasado %}
+            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">⏰ Atrasado</span>
+          {% endif %}
           {% if aviso.cobro_estado == 'moroso' %}
             <span class="badge bg-danger">⚠️ Moroso</span>
           {% elif aviso.cobro_estado == 'pagado' %}
@@ -33,7 +44,7 @@
         </div>
         <div class="small mt-1">
           {% if aviso.electrodomestico %}<span class="me-2">🔧 {{ aviso.electrodomestico }}{% if aviso.marca %} · {{ aviso.marca }}{% endif %}</span>{% endif %}
-          {% if aviso.fecha_cita %}<span class="text-primary">🗓️ Cita: {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}</span>{% endif %}
+          {% if aviso.fecha_cita %}<span class="text-primary">🗓️ Cita: {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}{% if aviso.hora_cita %} · {{ aviso.hora_cita }} ({{ aviso.duracion_label }}){% endif %}</span>{% endif %}
         </div>
         <!-- Técnico y admin asignado -->
         <div class="small mt-1 d-flex flex-wrap gap-1">

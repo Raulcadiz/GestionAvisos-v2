@@ -127,7 +127,7 @@
         <div class="card-header fw-semibold bg-info text-dark">📅 Fechas y Estado</div>
         <div class="card-body">
           <div class="row g-3">
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
               <label class="form-label">Fecha del aviso</label>
               <input type="date" name="fecha_aviso" class="form-control"
                      value="{{ aviso.fecha_aviso.strftime('%Y-%m-%d') if aviso and aviso.fecha_aviso else '' }}">
@@ -143,12 +143,24 @@
               </div>
               {% endif %}
             </div>
-            <div class="col-12 col-md-1">
+            <div class="col-6 col-md-2">
               <label class="form-label">Hora</label>
               <input type="time" name="hora_cita" class="form-control"
-                     value="{{ aviso.hora_cita if aviso and aviso.hora_cita else '' }}">
+                     value="{{ aviso.hora_cita if aviso and aviso.hora_cita else prefill_hora_cita|default('') }}">
             </div>
-            <div class="col-12 col-md-4">
+            <div class="col-6 col-md-2">
+              <label class="form-label">Duración</label>
+              {% set duracion_actual = aviso.duracion_efectiva if aviso else (prefill_duracion or duracion_defecto) %}
+              <select name="duracion_min" class="form-select">
+                {% if duracion_actual not in duraciones|map('first')|list %}
+                  <option value="{{ duracion_actual }}" selected>{{ duracion_actual }} min</option>
+                {% endif %}
+                {% for minutos, label in duraciones %}
+                  <option value="{{ minutos }}" {% if minutos == duracion_actual %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-2">
               <label class="form-label">Estado</label>
               <select name="estado" class="form-select form-select-lg">
                 {% for key, label in estados %}
@@ -252,7 +264,7 @@
                 <option value="">— Sin asignar —</option>
                 {% for t in tecnicos %}
                   <option value="{{ t.id }}"
-                    {% if aviso and aviso.asignado_a == t.id %}selected{% endif %}>
+                    {% if (aviso and aviso.asignado_a == t.id) or (not aviso and prefill_asignado|default(none) == t.id) %}selected{% endif %}>
                     {{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name }} ({{ t.rol_label }})
                   </option>
                 {% endfor %}

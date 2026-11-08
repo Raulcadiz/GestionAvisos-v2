@@ -155,6 +155,24 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script>
+// Si el menú ocupa varias filas en escritorio, el contenido no debe quedar debajo
+(function () {
+  const nav = document.querySelector('.eb-navbar');
+  if (!nav) return;
+  const ajustar = () => {
+    document.body.style.paddingTop = window.innerWidth >= 992 ? nav.offsetHeight + 'px' : '';
+  };
+  ajustar();
+  new ResizeObserver(ajustar).observe(nav);
+  window.addEventListener('resize', ajustar);
+})();
+
+function esc(valor) {
+  return String(valor ?? '').replace(/[&<>"']/g, c => (
+    {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]
+  ));
+}
+
 function initSearch(inputId, resultsId) {
   const inp = document.getElementById(inputId);
   const res = document.getElementById(resultsId);
@@ -175,10 +193,10 @@ function initSearch(inputId, resultsId) {
               `<a href="${a.url}" class="search-item">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
-                    <div class="fw-semibold small">${a.nombre_cliente}</div>
-                    <div class="text-muted" style="font-size:0.78rem">${a.calle ? a.calle + ' · ' : ''}${a.telefono}</div>
+                    <div class="fw-semibold small">${esc(a.nombre_cliente)}</div>
+                    <div class="text-muted" style="font-size:0.78rem">${a.calle ? esc(a.calle) + ' · ' : ''}${esc(a.telefono)}</div>
                   </div>
-                  <span class="badge ${a.estado_class} ms-2 flex-shrink-0" style="font-size:0.7rem">${a.estado}</span>
+                  <span class="badge ${a.estado_class} ms-2 flex-shrink-0" style="font-size:0.7rem">${esc(a.estado)}</span>
                 </div>
               </a>`
             ).join('');

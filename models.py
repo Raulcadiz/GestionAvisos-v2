@@ -1,4 +1,6 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
+from zoneinfo import ZoneInfo
+
 from flask_login import UserMixin
 from sqlalchemy import event
 from extensions import db
@@ -30,6 +32,18 @@ COBRO_ESTADOS = [
     ('pendiente', 'Pendiente de cobro'),
     ('pagado',    'Pagado'),
     ('moroso',    'Moroso'),
+]
+
+DURACION_DEFECTO = 60
+
+DURACIONES = [
+    (30,  '30 min'),
+    (60,  '1 h'),
+    (90,  '1 h 30 min'),
+    (120, '2 h'),
+    (180, '3 h'),
+    (240, '4 h'),
+    (480, 'Jornada (8 h)'),
 ]
 
 ELECTRODOMESTICOS = [
@@ -141,8 +155,9 @@ class Aviso(db.Model):
 
     # Fechas
     fecha_aviso = db.Column(db.Date, nullable=False, default=date.today)
-    fecha_cita  = db.Column(db.Date, nullable=True)
+    fecha_cita  = db.Column(db.Date, nullable=True, index=True)
     hora_cita   = db.Column(db.String(5), nullable=True)  # "HH:MM"
+    duracion_min = db.Column(db.Integer, nullable=True, default=DURACION_DEFECTO)
 
     # Artículos de instalación (JSON)
     items_instalacion = db.Column(db.Text, nullable=True)
@@ -163,18 +178,33 @@ class Aviso(db.Model):
     created_at        = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at        = db.Column(db.DateTime, default=datetime.utcnow)
     created_by        = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
-    asignado_a        = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
+    asignado_a        = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True, index=True)
     admin_asignado_id = db.Column(db.Integer,  db.ForeignKey('user.id'), nullable=True)
 
     # Relaciones
     photos          = db.relationship('Photo', backref='aviso', lazy=True,
                                       cascade='all, delete-orphan')
+    historial       = db.relationship('AvisoHistorial', backref='aviso', lazy=True,
+                                      cascade='all, delete-orphan',
+                                      order_by='AvisoHistorial.id.desc()')
     tecnico         = db.relationship('User', foreign_keys=[asignado_a],
                                       backref=db.backref('avisos_asignados', lazy=True))
     admin_asignado  = db.relationship('User', foreign_keys=[admin_asignado_id],
                                       backref=db.backref('avisos_administrados', lazy=True))
 
     # ── Permisos ────────────────────────────────────────────────────
+
+    @classmethod
+    def visibles_para(cls, user):
+        """Query de avisos visibles: los admins ven todos; el resto, solo los suyos."""
+        q = cls.query
+        if not user.es_admin:
+            q = q.filter(db.or_(cls.asignado_a == user.id,
+                                cls.created_by == user.id))
+        return q
+
+    def puede_ver(self, user):
+        return user.es_admin or user.id in (self.asignado_a, self.created_by)
 
     def puede_editar(self, user):
         """
@@ -187,6 +217,26 @@ class Aviso(db.Model):
         if user.es_admin:
             return self.admin_asignado_id is None or self.admin_asignado_id == user.id
         return self.asignado_a == user.id
+
+    # ── Cita ────────────────────────────────────────────────────────
+
+    @property
+    def atrasado(self):
+        return (self.fecha_cita is not None
+                and self.fecha_cita < date.today()
+                and self.estado != 'finalizado')
+
+    @property
+    def duracion_efectiva(self):
+        return self.duracion_min or DURACION_DEFECTO
+
+    @property
+    def duracion_label(self):
+        minutos = self.duracion_efectiva
+        horas, resto = divmod(minutos, 60)
+        if not horas:
+            return f'{resto} min'
+        return f'{horas} h {resto} min' if resto else f'{horas} h'
 
     # ── Tipo de servicio ────────────────────────────────────────────
 
@@ -268,6 +318,36 @@ class Aviso(db.Model):
 @event.listens_for(Aviso, 'before_update')
 def update_timestamp(mapper, connection, target):
     target.updated_at = datetime.utcnow()
+
+
+class AvisoHistorial(db.Model):
+    """Registro de cambios relevantes de un aviso."""
+    __tablename__ = 'aviso_historial'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    aviso_id       = db.Column(db.Integer, db.ForeignKey('aviso.id'), nullable=False, index=True)
+    user_id        = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    campo          = db.Column(db.String(30), nullable=False)  # estado|cita|duracion|tecnico|cobro
+    valor_anterior = db.Column(db.String(200))
+    valor_nuevo    = db.Column(db.String(200))
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+    usuario = db.relationship('User', foreign_keys=[user_id])
+
+    @property
+    def fecha_local(self):
+        """Fecha del cambio en hora de España (se guarda en UTC)."""
+        return self.created_at.replace(tzinfo=timezone.utc).astimezone(ZoneInfo('Europe/Madrid'))
+
+    @property
+    def campo_label(self):
+        return {
+            'estado':   'Estado',
+            'cita':     'Cita',
+            'duracion': 'Duración',
+            'tecnico':  'Técnico',
+            'cobro':    'Cobro',
+        }.get(self.campo, self.campo)
 
 
 class PrecioInstalacion(db.Model):

@@ -9,7 +9,7 @@
   <div class="d-flex flex-wrap gap-2 align-items-center">
 
     {% if current_user.es_admin %}
-    <select id="filtro-tecnico" class="form-select form-select-sm" style="min-width:160px">
+    <select id="filtro-tecnico" class="form-select form-select-sm w-auto" style="min-width:160px" aria-label="Técnico">
       <option value="">👥 Todos los técnicos</option>
       {% for t in tecnicos %}
       <option value="{{ t.id }}">{{ '📦' if t.rol == 'repartidor' else '🔧' }} {{ t.display_name }}</option>
@@ -17,11 +17,19 @@
     </select>
     {% endif %}
 
-    <select id="filtro-tipo" class="form-select form-select-sm" style="min-width:140px">
+    <select id="filtro-tipo" class="form-select form-select-sm w-auto" style="min-width:140px" aria-label="Tipo">
       <option value="">🔍 Todos los tipos</option>
       <option value="reparacion">🔧 Reparación</option>
       <option value="instalacion">⚡ Instalación</option>
       <option value="reparto">📦 Reparto</option>
+    </select>
+
+    <select id="filtro-estado" class="form-select form-select-sm w-auto" style="min-width:140px" aria-label="Estado">
+      <option value="">📋 Todos los estados</option>
+      <option value="activos">🟢 Sin finalizados</option>
+      {% for key, label in estados %}
+      <option value="{{ key }}">{{ label }}</option>
+      {% endfor %}
     </select>
 
     {% if current_user.es_admin and not current_user.es_super_admin %}
@@ -33,79 +41,65 @@
 
     <div class="btn-group btn-group-sm" id="vista-btns">
       <button class="btn btn-outline-secondary" data-view="dayGridMonth" title="Mes">Mes</button>
-      <button class="btn btn-outline-secondary active" data-view="timeGridWeek" title="Semana">Semana</button>
-      <button class="btn btn-outline-secondary" data-view="timeGridDay" title="Día">Día</button>
+      <button class="btn btn-outline-secondary active" data-view="dayGridWeek" title="Semana">Semana</button>
+      <button class="btn btn-outline-secondary" data-view="dayGridDay" title="Día">Día</button>
       <button class="btn btn-outline-secondary" data-view="listWeek" title="Lista">Lista</button>
+      {% if current_user.es_admin_o_superior %}
+      <button class="btn btn-outline-secondary" data-view="equipo" title="Por técnico">Equipo</button>
+      {% endif %}
     </div>
 
     {% if current_user.es_admin_o_superior %}
+    <a href="{{ url_for('avisos.list_all', sin_cita=1) }}" class="btn btn-sm btn-outline-primary fw-semibold">📥 Sin cita</a>
     <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success fw-semibold">➕ Nuevo</a>
     {% endif %}
   </div>
 </div>
 
-<!-- Layout: panel hoy (izq) + calendario (der) -->
-<div class="row g-3 align-items-start">
-
-  <!-- Panel "Hoy" -->
-  <div class="col-12 col-xl-3 order-2 order-xl-1">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header fw-semibold py-2 px-3 d-flex justify-content-between align-items-center" style="background:linear-gradient(135deg,#0077b6,#00b4d8);color:#fff">
-        <span>📋 <span id="hoy-titulo">Hoy</span></span>
-        <span class="badge bg-white text-primary fw-bold" id="hoy-count">0</span>
-      </div>
-      <div class="card-body p-0" id="hoy-lista" style="max-height:75vh;overflow-y:auto">
-        <div class="text-center text-muted py-4 small" id="hoy-vacio">
-          <div class="fs-2 mb-1">🗓️</div>Sin citas
-        </div>
-      </div>
-    </div>
-
-    <!-- Leyenda técnicos -->
-    {% if current_user.es_admin and tecnicos %}
-    <div class="card border-0 shadow-sm mt-3">
-      <div class="card-header fw-semibold py-2 px-3 small bg-light">👥 Técnicos</div>
-      <div class="card-body py-2 px-3">
-        {% set colores = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'] %}
-        {% for t in tecnicos %}
-        <div class="d-flex align-items-center gap-2 mb-1 eb-tecnico-row" style="cursor:pointer" data-tecnico-id="{{ t.id }}">
-          <span class="eb-dot-tecnico rounded-circle" style="width:12px;height:12px;flex-shrink:0;background:{{ colores[loop.index0 % colores|length] }}"></span>
-          <span class="small fw-semibold">{{ t.display_name }}</span>
-          <span class="badge bg-light text-muted ms-auto eb-cnt-{{ t.id }}" style="font-size:0.65rem"></span>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Leyenda estados -->
-    <div class="card border-0 shadow-sm mt-3">
-      <div class="card-header fw-semibold py-2 px-3 small bg-light">📋 Estados</div>
-      <div class="card-body py-2 px-3">
-        <div class="d-flex flex-column gap-1">
-          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#ffc107;flex-shrink:0"></span><span class="small">Pendiente</span></div>
-          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#dc3545;flex-shrink:0"></span><span class="small">Hoy</span></div>
-          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#0dcaf0;flex-shrink:0"></span><span class="small">Esp. material</span></div>
-          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#0d6efd;flex-shrink:0"></span><span class="small">2ª visita</span></div>
-          <div class="d-flex align-items-center gap-2"><span style="width:10px;height:10px;border-radius:50%;background:#adb5bd;flex-shrink:0"></span><span class="small">Finalizado</span></div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Calendario principal -->
-  <div class="col-12 col-xl-9 order-1 order-xl-2">
+<!-- Calendario principal -->
+<div>
     <div class="card shadow border-0" style="border-radius:14px;overflow:hidden">
       <div class="card-body p-1 p-md-2">
         <div id="calendario"></div>
+
+        <!-- Vista Equipo -->
+        <div id="equipo" class="d-none">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-primary" id="equipo-prev" aria-label="Semana anterior">‹</button>
+              <button class="btn btn-primary" id="equipo-next" aria-label="Semana siguiente">›</button>
+              <button class="btn btn-primary" id="equipo-hoy">Hoy</button>
+            </div>
+            <div class="fw-bold" id="equipo-titulo"></div>
+          </div>
+          <div class="table-responsive"><table class="table table-bordered mb-0" id="equipo-tabla"></table></div>
+        </div>
       </div>
     </div>
     {% if current_user.es_admin_o_superior %}
-    <p class="text-muted small mt-1 mb-0">💡 Clic en un día para crear aviso · Arrastra para cambiar fecha</p>
+    <p class="text-muted small mt-1 mb-0">💡 Clic en un día para crear aviso · Arrastra un aviso para cambiarlo de día</p>
     {% endif %}
-  </div>
 
+    <!-- Leyendas -->
+    <div class="d-flex flex-wrap align-items-center gap-3 mt-2 small">
+      {% if current_user.es_admin and tecnicos %}
+      {% set colores = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'] %}
+      {% for t in tecnicos %}
+      <span class="d-inline-flex align-items-center gap-1 eb-tecnico-row px-1" style="cursor:pointer" data-tecnico-id="{{ t.id }}">
+        <span class="rounded-circle" style="width:12px;height:12px;flex-shrink:0;background:{{ colores[loop.index0 % colores|length] }}"></span>
+        <span class="fw-semibold">{{ t.display_name }}</span>
+        <span class="badge bg-light text-muted eb-cnt-{{ t.id }}" style="font-size:0.65rem"></span>
+      </span>
+      {% endfor %}
+      <span class="text-muted">|</span>
+      {% endif %}
+      <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle" style="width:10px;height:10px;background:#ffc107"></span>Pendiente</span>
+      <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle" style="width:10px;height:10px;background:#dc3545"></span>Hoy</span>
+      <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle" style="width:10px;height:10px;background:#0dcaf0"></span>Esp. material</span>
+      <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle" style="width:10px;height:10px;background:#0d6efd"></span>2ª visita</span>
+      <span class="d-inline-flex align-items-center gap-1"><span class="rounded-circle" style="width:10px;height:10px;background:#adb5bd"></span>Finalizado</span>
+      <span>⚠️ Solapada</span>
+    </div>
 </div>
 
 <!-- Modal detalle rápido -->
@@ -117,23 +111,75 @@
           <h6 class="modal-title fw-bold mb-0" id="modalTitulo"></h6>
           <small id="modalSub" class="opacity-80"></small>
         </div>
-        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body py-2 px-3" id="modalCuerpo"></div>
       <div class="modal-footer py-2 gap-2">
         <a id="modalEnlace" href="#" class="btn btn-primary btn-sm flex-grow-1">Ver aviso completo →</a>
+        <button type="button" class="btn btn-outline-primary btn-sm d-none" id="modalReprogramar">🗓️ Reprogramar</button>
         <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Toast drag-drop -->
+{% if current_user.es_admin_o_superior %}
+<!-- Modal programar / reprogramar -->
+<div class="modal fade" id="modalProgramar" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <form class="modal-content border-0 shadow-lg" id="formProgramar">
+      <div class="modal-header py-2 px-3">
+        <h6 class="modal-title fw-bold mb-0" id="progTitulo"></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body row g-2 px-3 py-2">
+        <div class="col-12">
+          <label class="form-label small mb-0" for="progFecha">Fecha</label>
+          <input type="date" id="progFecha" class="form-control" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-0" for="progHora">Hora (opcional)</label>
+          <input type="time" id="progHora" class="form-control">
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-0" for="progDuracion">Duración</label>
+          <select id="progDuracion" class="form-select"></select>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-0" for="progTecnico">Técnico</label>
+          <select id="progTecnico" class="form-select"></select>
+        </div>
+      </div>
+      <div class="modal-footer py-2 gap-2">
+        <button type="button" class="btn btn-outline-danger btn-sm me-auto" id="progQuitar">Quitar cita</button>
+        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal crear aviso en un hueco -->
+<div class="modal fade" id="modalHueco" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-body text-center py-3">
+        <div class="small text-muted">Nueva cita</div>
+        <div class="fw-bold text-capitalize mb-3" id="huecoTexto"></div>
+        <a href="#" id="huecoCrear" class="btn btn-success btn-sm w-100 mb-2">➕ Crear aviso aquí</a>
+        <button type="button" class="btn btn-light btn-sm w-100" data-bs-dismiss="modal">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Toast -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
   <div id="toastDrag" class="toast align-items-center text-white border-0">
     <div class="d-flex">
       <div class="toast-body fw-semibold" id="toastMsg"></div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
     </div>
   </div>
 </div>
@@ -144,330 +190,552 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-  // ── Colores por técnico ───────────────────────────────────────────────────
+  const PUEDE_EDITAR = {{ 'true' if current_user.es_admin_o_superior else 'false' }};
+  const ASIGNABLES   = {{ asignables|tojson }};
+  const DURACIONES   = {{ duraciones|tojson }};
+  const URL_NUEVO    = "{{ url_for('avisos.create') }}";
+  const CLAVE_PREFS  = 'eb_calendario_prefs';
+
+  // ── Fechas locales (nunca toISOString: devuelve UTC y cambia de día) ─────
+  const pad        = n => String(n).padStart(2, '0');
+  const fechaLocal = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const horaLocal  = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const aDate      = f => new Date(f + 'T12:00:00');
+  const hoyISO     = () => fechaLocal(new Date());
+
+  function sumarDias(fecha, dias) {
+    const d = aDate(fecha);
+    d.setDate(d.getDate() + dias);
+    return fechaLocal(d);
+  }
+
+  function lunesDe(fecha) {
+    const dia = aDate(fecha).getDay();
+    return sumarDias(fecha, dia === 0 ? -6 : 1 - dia);
+  }
+
+  const fechaCorta = f => aDate(f).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  function textoDuracion(minutos) {
+    const h = Math.floor(minutos / 60), m = minutos % 60;
+    if (!h) return `${m} min`;
+    return m ? `${h} h ${m}` : `${h} h`;
+  }
+
+  // ── Preferencias del usuario ─────────────────────────────────────────────
+  function leerPrefs() {
+    try { return JSON.parse(localStorage.getItem(CLAVE_PREFS)) || {}; }
+    catch (e) { return {}; }
+  }
+
+  function guardarPrefs() {
+    try {
+      localStorage.setItem(CLAVE_PREFS, JSON.stringify({
+        vista:   vistaActual,
+        tecnico: filtroTecnico ? filtroTecnico.value : '',
+        tipo:    filtroTipo.value,
+        estado:  filtroEstado.value,
+        todos:   !!(toggleTodos && toggleTodos.checked),
+      }));
+    } catch (e) { /* almacenamiento no disponible */ }
+  }
+
+  function restaurarSelect(select, valor) {
+    if (select && valor && [...select.options].some(o => o.value === valor)) select.value = valor;
+  }
+
+  // ── Colores por técnico ──────────────────────────────────────────────────
   const PALETA = ['#6610f2','#0d6efd','#20c997','#fd7e14','#e83e8c','#6f42c1','#17a2b8','#28a745'];
   const mapaColor = {};  // tecnico_id → color
   document.querySelectorAll('.eb-tecnico-row').forEach((el, i) => {
     mapaColor[el.dataset.tecnicoId] = PALETA[i % PALETA.length];
   });
 
-  // ── Colores por estado (badge pequeño) ──────────────────────────────────
-  const ESTADO_COLOR = {
-    pendiente:          '#ffc107',
-    hoy:                '#dc3545',
-    esperando_material: '#0dcaf0',
-    segunda_visita:     '#0d6efd',
-    finalizado:         '#adb5bd',
-  };
-
-  // ── Refs DOM ──────────────────────────────────────────────────────────────
+  // ── Referencias ──────────────────────────────────────────────────────────
   const filtroTecnico = document.getElementById('filtro-tecnico');
   const filtroTipo    = document.getElementById('filtro-tipo');
+  const filtroEstado  = document.getElementById('filtro-estado');
   const toggleTodos   = document.getElementById('toggle-todos');
   const toastEl       = document.getElementById('toastDrag');
-  const bsToast       = new bootstrap.Toast(toastEl, { delay: 3000 });
-  const modal         = new bootstrap.Modal(document.getElementById('modalEvento'));
-  const PUEDE_EDITAR  = {{ 'true' if current_user.es_admin_o_superior else 'false' }};
+  const bsToast       = new bootstrap.Toast(toastEl, { delay: 4000 });
+  const modalEvento   = new bootstrap.Modal(document.getElementById('modalEvento'));
+  const elCalendario  = document.getElementById('calendario');
+  const elEquipo      = document.getElementById('equipo');
 
-  // ── Panel Hoy ──────────────────────────────────────────────────────────
-  const hoyLista = document.getElementById('hoy-lista');
-  const hoyVacio = document.getElementById('hoy-vacio');
-  const hoyCount = document.getElementById('hoy-count');
-  let   fechaActiva = new Date().toISOString().slice(0,10);
+  const prefs = leerPrefs();
+  restaurarSelect(filtroTecnico, prefs.tecnico);
+  restaurarSelect(filtroTipo, prefs.tipo);
+  restaurarSelect(filtroEstado, prefs.estado);
+  if (toggleTodos) toggleTodos.checked = !!prefs.todos;
 
-  function cargarHoy(fecha) {
-    fechaActiva = fecha;
-    const tid  = filtroTecnico ? filtroTecnico.value : '';
-    const tipo = filtroTipo ? filtroTipo.value : '';
-    const todos = toggleTodos && toggleTodos.checked ? '1' : '0';
-    const start = fecha;
-    const end   = new Date(new Date(fecha).getTime() + 86400000).toISOString().slice(0,10);
-    let url = `/calendario/api/eventos?start=${start}&end=${end}&todos=${todos}`;
-    if (tid)  url += `&tecnico_id=${tid}`;
-    if (tipo) url += `&tipo=${tipo}`;
+  const VISTAS_VALIDAS = ['dayGridMonth', 'dayGridWeek', 'dayGridDay', 'listWeek'].concat(PUEDE_EDITAR ? ['equipo'] : []);
+  let vistaActual = VISTAS_VALIDAS.includes(prefs.vista) ? prefs.vista
+    : (window.innerWidth < 768 ? 'listWeek' : 'dayGridWeek');
 
-    // título del panel
-    const dt = new Date(fecha + 'T12:00:00');
-    const esHoy = fecha === new Date().toISOString().slice(0,10);
-    document.getElementById('hoy-titulo').textContent = esHoy ? 'Hoy' :
-      dt.toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short' });
-
-    fetch(url).then(r => r.json()).then(eventos => {
-      hoyCount.textContent = eventos.length;
-      if (!eventos.length) {
-        hoyLista.innerHTML = '';
-        hoyVacio.style.display = '';
-        hoyLista.appendChild(hoyVacio);
-        return;
-      }
-      hoyVacio.style.display = 'none';
-      // Ordenar por hora
-      eventos.sort((a, b) => (a.start > b.start ? 1 : -1));
-      hoyLista.innerHTML = eventos.map(ev => {
-        const p    = ev.extendedProps;
-        const hora = p.hora_cita ? `<span class="badge bg-dark me-1" style="font-size:0.7rem">${p.hora_cita}</span>` : '';
-        const colorTec = mapaColor[p.tecnico_id] || '#6c757d';
-        const colorEst = ESTADO_COLOR[ev.backgroundColor] || ev.backgroundColor;
-        return `<a href="${ev.url}" class="d-block px-3 py-2 text-decoration-none border-bottom hoy-item"
-                   style="border-left:4px solid ${ev.backgroundColor}!important;border-left-width:4px">
-          <div class="d-flex align-items-start gap-2">
-            <div class="flex-grow-1 min-w-0">
-              <div class="fw-semibold small text-dark text-truncate">${hora}${p.tipo_icon} ${p.calle || p.nombre_cliente}</div>
-              ${p.calle ? `<div class="text-muted" style="font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">👤 ${p.nombre_cliente}</div>` : ''}
-              ${p.electrodomestico ? `<div class="text-muted" style="font-size:0.72rem">🔧 ${p.electrodomestico}${p.marca ? ' · '+p.marca : ''}</div>` : ''}
-              ${p.tecnico ? `<div style="font-size:0.72rem;color:${colorTec};font-weight:600">● ${p.tecnico}</div>` : ''}
-            </div>
-            ${p.telefono ? `<a href="tel:${p.telefono}" class="text-success fw-bold" style="font-size:0.8rem;white-space:nowrap" onclick="event.stopPropagation()">📞</a>` : ''}
-          </div>
-        </a>`;
-      }).join('');
-    });
-  }
-
-  cargarHoy(fechaActiva);
-
-  // Click en fila de técnico → filtrar
-  document.querySelectorAll('.eb-tecnico-row').forEach(el => {
-    el.addEventListener('click', function() {
-      if (filtroTecnico) {
-        const tid = this.dataset.tecnicoId;
-        filtroTecnico.value = filtroTecnico.value === tid ? '' : tid;
-        cal.refetchEvents();
-        cargarHoy(fechaActiva);
-      }
-    });
-  });
-
-  if (toggleTodos) {
-    toggleTodos.addEventListener('change', () => { cal.refetchEvents(); cargarHoy(fechaActiva); });
-  }
-
-  // ── URL de eventos ────────────────────────────────────────────────────────
-  function buildUrl(info) {
-    const tid  = filtroTecnico ? filtroTecnico.value : '';
-    const tipo = filtroTipo    ? filtroTipo.value    : '';
-    const todos = toggleTodos && toggleTodos.checked ? '1' : '0';
-    let url = `/calendario/api/eventos?start=${info.startStr}&end=${info.endStr}&todos=${todos}`;
-    if (tid)  url += `&tecnico_id=${tid}`;
-    if (tipo) url += `&tipo=${tipo}`;
-    return url;
-  }
-
-  // ── Toast ────────────────────────────────────────────────────────────────
-  function toast(msg, ok) {
+  function toast(msg, tipo) {
     document.getElementById('toastMsg').textContent = msg;
-    toastEl.className = `toast align-items-center text-white border-0 ${ok ? 'bg-success' : 'bg-danger'}`;
+    toastEl.className = `toast align-items-center border-0 ${
+      tipo === 'ok' ? 'text-white bg-success' : tipo === 'aviso' ? 'text-dark bg-warning' : 'text-white bg-danger'}`;
     bsToast.show();
   }
 
-  // ── Actualizar contadores en leyenda técnicos ────────────────────────────
+  function urlEventos(inicio, fin) {
+    const p = new URLSearchParams({
+      start: inicio,
+      end:   fin,
+      todos: toggleTodos && toggleTodos.checked ? '1' : '0',
+    });
+    if (filtroTecnico && filtroTecnico.value) p.set('tecnico_id', filtroTecnico.value);
+    if (filtroTipo.value)   p.set('tipo', filtroTipo.value);
+    if (filtroEstado.value) p.set('estado', filtroEstado.value);
+    return `/calendario/api/eventos?${p}`;
+  }
+
+  function pedirJSON(url) {
+    return fetch(url).then(r => {
+      if (!r.ok) throw new Error('respuesta no válida');
+      return r.json();
+    });
+  }
+
+  // ── Guardar cambios de cita ──────────────────────────────────────────────
+  function guardarCita(id, datos) {
+    return fetch(`/calendario/api/eventos/${id}/reschedule`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(datos),
+    })
+      .then(r => r.json().catch(() => ({ error: 'La sesión ha caducado. Recarga la página.' })))
+      .then(d => {
+        if (!d.ok) throw new Error(d.error || 'No se pudo guardar');
+        return d;
+      });
+  }
+
+  function informarGuardado(d) {
+    if (d.solapes && d.solapes.length) {
+      const lista = d.solapes.map(s => `${s.hora} ${s.cliente}`).join(', ');
+      toast(`⚠️ Guardado, pero se solapa con: ${lista}`, 'aviso');
+    } else if (d.fecha_cita) {
+      toast(`✅ Cita: ${fechaCorta(d.fecha_cita)}${d.hora_cita ? ' · ' + d.hora_cita : ''}`, 'ok');
+    } else {
+      toast('✅ Cita quitada', 'ok');
+    }
+  }
+
+  function refrescarTodo() {
+    cal.refetchEvents();
+    if (vistaActual === 'equipo') cargarEquipo();
+  }
+
+  function fallo(err) {
+    toast('❌ ' + (err.message || 'Error de red'), 'error');
+  }
+
+  // Cuerpo común a mover y soltar: fecha y hora que muestra el calendario
+  function datosDeEvento(ev) {
+    return { fecha_cita: fechaLocal(ev.start), hora_cita: ev.allDay ? null : horaLocal(ev.start) };
+  }
+
+  // ── Modal reprogramar ────────────────────────────────────────────────────
+  const modalProgramar = PUEDE_EDITAR ? new bootstrap.Modal(document.getElementById('modalProgramar')) : null;
+  let programando = null;
+
+  function abrirProgramar(datos) {
+    programando = datos;
+    document.getElementById('progTitulo').textContent = '🗓️ Reprogramar: ' + datos.titulo;
+    document.getElementById('progFecha').value = datos.fecha;
+    document.getElementById('progHora').value  = datos.hora || '';
+
+    const opcionesDuracion = DURACIONES.some(([m]) => m === datos.duracion)
+      ? DURACIONES : [[datos.duracion, textoDuracion(datos.duracion)], ...DURACIONES];
+    const selDuracion = document.getElementById('progDuracion');
+    selDuracion.innerHTML = opcionesDuracion.map(([m, l]) => `<option value="${m}">${esc(l)}</option>`).join('');
+    selDuracion.value = String(datos.duracion);
+
+    const selTecnico = document.getElementById('progTecnico');
+    const conocido = !datos.tecnicoId || ASIGNABLES.some(t => t.id === datos.tecnicoId);
+    selTecnico.innerHTML = '<option value="0">— Sin asignar —</option>'
+      + (conocido ? '' : `<option value="${datos.tecnicoId}">${esc(datos.tecnicoNombre || 'Técnico actual')}</option>`)
+      + ASIGNABLES.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join('');
+    selTecnico.value = String(datos.tecnicoId || 0);
+
+    modalProgramar.show();
+  }
+
+  function enviarProgramacion(cuerpo) {
+    guardarCita(programando.id, cuerpo)
+      .then(d => { modalProgramar.hide(); informarGuardado(d); refrescarTodo(); })
+      .catch(fallo);
+  }
+
+  if (PUEDE_EDITAR) {
+    document.getElementById('formProgramar').addEventListener('submit', e => {
+      e.preventDefault();
+      const cuerpo = {
+        fecha_cita:   document.getElementById('progFecha').value,
+        hora_cita:    document.getElementById('progHora').value || null,
+        duracion_min: Number(document.getElementById('progDuracion').value),
+      };
+      const tecnico = Number(document.getElementById('progTecnico').value);
+      if (tecnico !== (programando.tecnicoId || 0)) cuerpo.asignado_a = tecnico || null;
+      enviarProgramacion(cuerpo);
+    });
+
+    document.getElementById('progQuitar').addEventListener('click', () => {
+      if (confirm('¿Quitar la cita de este aviso? Quedará sin cita.')) {
+        enviarProgramacion({ fecha_cita: null });
+      }
+    });
+  }
+
+  // ── Detalle de una cita ──────────────────────────────────────────────────
+  function abrirDetalle(ev) {
+    const p = ev.extendedProps;
+    const colorTec = mapaColor[p.tecnico_id];
+
+    const hdr = document.getElementById('modalHeader');
+    hdr.style.background = ev.backgroundColor;
+    hdr.style.color      = ev.textColor || '#000';
+    document.querySelector('#modalHeader .btn-close').style.filter = ev.textColor === '#ffffff' ? 'invert(1)' : '';
+
+    document.getElementById('modalTitulo').textContent = p.calle || p.nombre_cliente || ev.title;
+    const sub = document.getElementById('modalSub');
+    sub.style.display = (p.calle && p.nombre_cliente) ? '' : 'none';
+    sub.textContent   = p.calle && p.nombre_cliente ? '👤 ' + p.nombre_cliente : '';
+
+    const fecha = aDate(p.fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    const fila = (titulo, valor) => `<tr><th class="text-muted" style="width:38%">${titulo}</th><td>${valor}</td></tr>`;
+
+    let html = '<table class="table table-sm mb-0 small">';
+    html += fila('📅 Fecha', `<span class="fw-semibold">${esc(fecha)}${p.hora_cita ? ' · <strong>' + esc(p.hora_cita) + '</strong> (' + esc(p.duracion_label) + ')' : ''}</span>`);
+    html += fila(`${esc(p.tipo_icon)} Tipo`, esc(p.tipo_servicio));
+    html += fila('📋 Estado', `<span class="badge rounded-pill" style="background:${esc(ev.backgroundColor)};color:${esc(ev.textColor || '#000')}">${esc(p.estado)}</span>`);
+    if (p.electrodomestico) html += fila('🔧 Aparato', `${esc(p.electrodomestico)}${p.marca ? ' · ' + esc(p.marca) : ''}`);
+    if (p.localidad) html += fila('🏙️ Localidad', esc(p.localidad));
+    if (p.telefono)  html += fila('📞 Tlf.', `<a href="tel:${esc(p.telefono)}" class="fw-bold text-success text-decoration-none">${esc(p.telefono)}</a>`);
+    if (p.tecnico)   html += fila('👤 Técnico', `<span class="fw-bold" style="color:${colorTec || 'inherit'}">● ${esc(p.tecnico)}</span>`);
+    if (p.origen && p.origen !== 'Particular') html += fila('🏪 Origen', esc(p.origen));
+    if (p.solape) html += '<tr><td colspan="2"><span class="badge bg-warning text-dark">⚠️ Se solapa con otra cita del técnico</span></td></tr>';
+    if (p.es_otro_equipo) html += `<tr><td colspan="2"><span class="badge bg-light text-muted">Solo lectura — otro equipo (${esc(p.admin_nombre)})</span></td></tr>`;
+    html += '</table>';
+
+    document.getElementById('modalCuerpo').innerHTML = html;
+    document.getElementById('modalEnlace').href = ev.url;
+
+    const reprogramar = document.getElementById('modalReprogramar');
+    reprogramar.classList.toggle('d-none', !p.puede_editar);
+    reprogramar.onclick = () => {
+      modalEvento.hide();
+      abrirProgramar({
+        id:            Number(ev.id),
+        titulo:        p.calle || p.nombre_cliente,
+        fecha:         p.fecha,
+        hora:          p.hora_cita,
+        duracion:      p.duracion_min,
+        tecnicoId:     p.tecnico_id,
+        tecnicoNombre: p.tecnico,
+      });
+    };
+
+    modalEvento.show();
+  }
+
+  // ── Contadores de la leyenda ─────────────────────────────────────────────
   function actualizarContadores(eventos) {
     const cnt = {};
-    eventos.forEach(e => { const t = e.extendedProps.tecnico_id; if (t) cnt[t] = (cnt[t]||0)+1; });
+    eventos.forEach(e => { const t = e.extendedProps.tecnico_id; if (t) cnt[t] = (cnt[t] || 0) + 1; });
     document.querySelectorAll('[class*="eb-cnt-"]').forEach(el => {
       const cls = [...el.classList].find(c => c.startsWith('eb-cnt-'));
       if (!cls) return;
-      const id  = cls.split('-')[2];
-      const n   = cnt[id] || 0;
-      el.textContent  = n > 0 ? n : '';
+      const n = cnt[cls.split('-')[2]] || 0;
+      el.textContent   = n > 0 ? n : '';
       el.style.display = n > 0 ? '' : 'none';
     });
   }
 
+  function sincronizarBotones(vista) {
+    document.querySelectorAll('#vista-btns button').forEach(b =>
+      b.classList.toggle('active', b.dataset.view === vista));
+  }
+
   // ── FullCalendar ─────────────────────────────────────────────────────────
-  const cal = new FullCalendar.Calendar(document.getElementById('calendario'), {
+  const cal = new FullCalendar.Calendar(elCalendario, {
     locale:       'es',
-    initialView:  'timeGridWeek',   // Vista semana con horas por defecto
+    initialView:  vistaActual === 'equipo' ? 'dayGridWeek' : vistaActual,
     height:       'auto',
     firstDay:     1,
-    nowIndicator: true,
     editable:     PUEDE_EDITAR,
-    droppable:    false,
-    dayMaxEvents: 3,
+    eventDurationEditable: false,
+    eventDisplay: 'block',
+    displayEventTime: false,
+    fixedWeekCount: false,
+    eventOrder:   'start,title',
+    navLinks:     true,
+    eventLongPressDelay: 400,
 
     headerToolbar: { left: 'prev,next today', center: 'title', right: false },
     buttonText:    { today: 'Hoy' },
 
     views: {
-      timeGridWeek: {
-        titleFormat:   { month: 'short', day: 'numeric' },
-        slotMinTime:   '07:00:00',
-        slotMaxTime:   '21:00:00',
-        slotDuration:  '00:30:00',
-        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
-        eventMinHeight: 36,
-        allDaySlot:    true,
+      dayGridWeek: {
+        titleFormat: { month: 'short', day: 'numeric' },
       },
-      timeGridDay: {
-        titleFormat:  { weekday: 'long', day: 'numeric', month: 'long' },
-        slotMinTime:  '07:00:00',
-        slotMaxTime:  '21:00:00',
-        slotDuration: '00:30:00',
-        slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
-        eventMinHeight: 48,
-        allDaySlot:   true,
+      dayGridDay: {
+        titleFormat: { weekday: 'long', day: 'numeric', month: 'long' },
       },
       dayGridMonth: {
         dayMaxEvents: 4,
       },
     },
 
-    // ── Cargar eventos ───────────────────────────────────────────────────
     events: function (info, success, failure) {
-      fetch(buildUrl(info))
-        .then(r => r.json())
+      pedirJSON(urlEventos(info.startStr.slice(0, 10), info.endStr.slice(0, 10)))
         .then(data => { actualizarContadores(data); success(data); })
-        .catch(err  => failure(err));
+        .catch(err => { toast('❌ No se pudieron cargar las citas', 'error'); failure(err); });
     },
 
-    // ── Contenido del evento ─────────────────────────────────────────────
     eventContent: function (arg) {
-      const p    = arg.event.extendedProps;
-      const hora = p.hora_cita;
+      const p        = arg.event.extendedProps;
+      const hora     = p.hora_cita;
       const colorTec = mapaColor[p.tecnico_id];
+      const texto    = p.calle || p.nombre_cliente || arg.event.title;
 
-      // Banda de color de técnico (si existe) como borde izquierdo interno
       const bandaTec = colorTec
-        ? `<span style="display:inline-block;width:3px;height:100%;background:${colorTec};border-radius:2px;margin-right:4px;flex-shrink:0"></span>`
+        ? `<span style="display:inline-block;width:3px;align-self:stretch;background:${colorTec};border-radius:2px;margin-right:4px;flex-shrink:0"></span>`
         : '';
 
       return { html: `
         <div class="eb-ev" style="display:flex;align-items:flex-start;gap:2px;padding:2px 4px;height:100%;overflow:hidden">
           ${bandaTec}
           <div style="flex:1;min-width:0;overflow:hidden">
-            ${hora ? `<div style="font-size:0.62rem;font-weight:800;color:inherit;opacity:0.9;line-height:1.1">${hora}</div>` : ''}
-            <div style="font-size:0.77rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">${p.tipo_icon} ${p.calle || p.nombre_cliente}</div>
-            ${p.calle && p.nombre_cliente ? `<div style="font-size:0.67rem;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">👤 ${p.nombre_cliente}</div>` : ''}
-            ${p.tecnico ? `<div style="font-size:0.67rem;font-weight:600;color:${colorTec||'inherit'};opacity:0.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">● ${p.tecnico}</div>` : ''}
-            ${p.electrodomestico ? `<div style="font-size:0.65rem;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1">🔧 ${p.electrodomestico}</div>` : ''}
+            ${hora ? `<div style="font-size:0.62rem;font-weight:800;color:inherit;opacity:0.9;line-height:1.1">${esc(hora)}${p.solape ? ' ⚠️' : ''}</div>` : ''}
+            <div style="font-size:0.77rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">${esc(p.tipo_icon)} ${esc(texto)}</div>
+            ${p.calle && p.nombre_cliente ? `<div style="font-size:0.67rem;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">👤 ${esc(p.nombre_cliente)}</div>` : ''}
+            ${p.tecnico ? `<div style="font-size:0.67rem;font-weight:600;color:${colorTec || 'inherit'};opacity:0.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2">● ${esc(p.tecnico)}</div>` : ''}
+            ${p.electrodomestico ? `<div style="font-size:0.65rem;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1">🔧 ${esc(p.electrodomestico)}</div>` : ''}
           </div>
         </div>` };
     },
 
-    // ── Click en evento → modal ──────────────────────────────────────────
     eventClick: function (info) {
       info.jsEvent.preventDefault();
-      const ev = info.event;
-      const p  = ev.extendedProps;
-      const colorTec = mapaColor[p.tecnico_id];
-
-      const hdr = document.getElementById('modalHeader');
-      hdr.style.background = ev.backgroundColor;
-      hdr.style.color      = ev.textColor || '#000';
-      document.querySelector('#modalHeader .btn-close').style.filter =
-        ev.textColor === '#ffffff' ? 'invert(1)' : '';
-
-      document.getElementById('modalTitulo').textContent = p.calle || p.nombre_cliente || ev.title;
-      const sub = document.getElementById('modalSub');
-      sub.style.display = (p.calle && p.nombre_cliente) ? '' : 'none';
-      sub.textContent   = p.calle && p.nombre_cliente ? '👤 ' + p.nombre_cliente : '';
-
-      const fecha = ev.start.toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'long' });
-      let html = `<table class="table table-sm mb-0 small">
-        <tr><th class="text-muted" style="width:38%">📅 Fecha</th>
-            <td class="fw-semibold">${fecha}${p.hora_cita ? ' · <strong>' + p.hora_cita + '</strong>' : ''}</td></tr>
-        <tr><th class="text-muted">${p.tipo_icon} Tipo</th><td>${p.tipo_servicio}</td></tr>
-        <tr><th class="text-muted">📋 Estado</th>
-            <td><span class="badge rounded-pill" style="background:${ev.backgroundColor};color:${ev.textColor||'#000'}">${p.estado}</span></td></tr>`;
-      if (p.electrodomestico)
-        html += `<tr><th class="text-muted">🔧 Aparato</th><td>${p.electrodomestico}${p.marca ? ' · '+p.marca : ''}</td></tr>`;
-      if (p.localidad)
-        html += `<tr><th class="text-muted">🏙️ Localidad</th><td>${p.localidad}</td></tr>`;
-      if (p.telefono)
-        html += `<tr><th class="text-muted">📞 Tlf.</th><td><a href="tel:${p.telefono}" class="fw-bold text-success text-decoration-none">${p.telefono}</a></td></tr>`;
-      if (p.tecnico)
-        html += `<tr><th class="text-muted">👤 Técnico</th>
-                     <td style="color:${colorTec||'inherit'}" class="fw-bold">● ${p.tecnico}</td></tr>`;
-      if (p.origen && p.origen !== 'Particular')
-        html += `<tr><th class="text-muted">🏪 Origen</th><td>${p.origen}</td></tr>`;
-      if (p.es_otro_equipo)
-        html += `<tr><td colspan="2"><span class="badge bg-light text-muted">Solo lectura — otro equipo (${p.admin_nombre})</span></td></tr>`;
-      html += '</table>';
-
-      document.getElementById('modalCuerpo').innerHTML = html;
-      document.getElementById('modalEnlace').href = ev.url;
-      modal.show();
+      abrirDetalle(info.event);
     },
 
-    // ── Click en "+N más" → cambia a vista día ───────────────────────────
     moreLinkClick: function (info) {
-      cal.changeView('timeGridDay', info.date);
-      document.querySelectorAll('#vista-btns button').forEach(b =>
-        b.classList.toggle('active', b.dataset.view === 'timeGridDay'));
+      cal.changeView('dayGridDay', info.date);
       return 'stop';
     },
 
-    // ── Click en cabecera de día → carga en panel Hoy ────────────────────
     navLinkDayClick: function (date) {
-      const f = date.toISOString().slice(0,10);
-      cargarHoy(f);
-      cal.changeView('timeGridDay', date);
+      cal.changeView('dayGridDay', date);
     },
-    navLinks: true,
 
-    // ── Click en día vacío → crear aviso ────────────────────────────────
     dateClick: function (info) {
       if (!PUEDE_EDITAR) return;
-      const f = info.dateStr.slice(0,10);
-      cargarHoy(f);   // actualiza el panel Hoy al clic
-      if (info.view.type !== 'timeGridDay') {
-        // Solo navega al día, sin abrir el formulario, salvo que sea en vista día
-        return;
+      const fecha = fechaLocal(info.date);
+
+      const params = new URLSearchParams({ fecha_cita: fecha });
+      let texto = aDate(fecha).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      if (!info.allDay) {
+        const hora = horaLocal(info.date);
+        params.set('hora_cita', hora);
+        texto += ` · ${hora}`;
       }
-      window.location.href = `/avisos/nuevo?fecha_cita=${f}`;
+      if (filtroTecnico && filtroTecnico.value) params.set('asignado_a', filtroTecnico.value);
+      document.getElementById('huecoTexto').textContent = texto;
+      document.getElementById('huecoCrear').href = `${URL_NUEVO}?${params}`;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHueco')).show();
     },
 
-    // ── Al cambiar rango → actualizar panel Hoy con el primer día ───────
     datesSet: function (info) {
-      const hoy = new Date().toISOString().slice(0,10);
-      const start = info.startStr.slice(0,10);
-      const end   = info.endStr.slice(0,10);
-      // Si hoy está en el rango visible, mostrar hoy; si no, el primer día
-      const usar = (hoy >= start && hoy < end) ? hoy : start;
-      cargarHoy(usar);
-    },
-
-    // ── Drag-drop ────────────────────────────────────────────────────────
-    eventDrop: function (info) {
-      const id      = info.event.id;
-      const nuevaF  = info.event.start.toISOString().slice(0,10);
-      fetch(`/calendario/api/eventos/${id}/reschedule`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fecha_cita: nuevaF }),
-      })
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          toast('✅ Cita movida al ' + new Date(nuevaF+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'}), true);
-          cargarHoy(fechaActiva);
-        } else { info.revert(); toast('❌ ' + (d.error||'Error'), false); }
-      })
-      .catch(() => { info.revert(); toast('❌ Error de red', false); });
-    },
-
-    // ── Celda de día ────────────────────────────────────────────────────
-    dayCellDidMount: function (info) {
-      const hoy = new Date().toDateString();
-      if (info.date.toDateString() === hoy) {
-        info.el.style.background = 'linear-gradient(135deg,#e8f4fd,#dbeafe)';
+      if (vistaActual !== 'equipo') {
+        vistaActual = info.view.type;
+        sincronizarBotones(vistaActual);
+        guardarPrefs();
       }
     },
+
+    eventDrop: function (info) {
+      guardarCita(info.event.id, datosDeEvento(info.event))
+        .then(d => { informarGuardado(d); refrescarTodo(); })
+        .catch(err => { info.revert(); fallo(err); });
+    },
+
   });
 
   cal.render();
 
-  // ── Botones de vista ─────────────────────────────────────────────────────
+  // ── Vista Equipo (técnicos × días) ───────────────────────────────────────
+  const tablaEquipo = document.getElementById('equipo-tabla');
+  let equipoInicio = lunesDe(fechaLocal(cal.getDate()));
+  let eventosEquipo = {};
+  let tokenEquipo = 0;
+
+  function filaDeTecnico(p) {
+    return ASIGNABLES.some(t => t.id === p.tecnico_id) ? p.tecnico_id : 0;
+  }
+
+  function tarjetaEquipo(ev) {
+    const p = ev.extendedProps;
+    return `<div class="eq-card" data-id="${ev.id}" draggable="${p.puede_editar ? 'true' : 'false'}"
+                 style="background:${esc(ev.backgroundColor)};color:${esc(ev.textColor)}">
+      <div class="fw-bold">${p.solape ? '⚠️ ' : ''}${esc(p.hora_cita || 'Sin hora')}</div>
+      <div class="text-truncate">${esc(p.tipo_icon)} ${esc(p.calle || p.nombre_cliente)}</div>
+    </div>`;
+  }
+
+  function pintarEquipo(eventos) {
+    eventosEquipo = Object.fromEntries(eventos.map(e => [String(e.id), e]));
+
+    const dias = Array.from({ length: 7 }, (_, i) => sumarDias(equipoInicio, i));
+    const haySinAsignar = eventos.some(ev => filaDeTecnico(ev.extendedProps) === 0);
+    const filas = [...ASIGNABLES, ...(haySinAsignar ? [{ id: 0, nombre: 'Sin asignar / otros' }] : [])]
+      .filter(t => !filtroTecnico || !filtroTecnico.value || t.id === Number(filtroTecnico.value));
+
+    document.getElementById('equipo-titulo').textContent =
+      `${fechaCorta(dias[0])} – ${fechaCorta(dias[6])}`;
+
+    const porCelda = {};
+    const minutosFila = {};
+    eventos.forEach(ev => {
+      const fila = filaDeTecnico(ev.extendedProps);
+      (porCelda[`${fila}|${ev.extendedProps.fecha}`] ||= []).push(ev);
+      minutosFila[fila] = (minutosFila[fila] || 0) + ev.extendedProps.duracion_min;
+    });
+
+    const cabecera = `<thead><tr><th class="eq-nombre">Técnico</th>${dias.map(d =>
+      `<th class="eq-dia ${d === hoyISO() ? 'eq-hoy' : ''}" data-fecha="${d}">${esc(fechaCorta(d))}</th>`).join('')}</tr></thead>`;
+
+    const cuerpo = filas.map(t => `<tr>
+      <th class="eq-nombre">
+        <div class="text-truncate">${esc(t.nombre)}</div>
+        <div class="fw-normal text-muted" style="font-size:0.7rem">${textoDuracion(minutosFila[t.id] || 0)}</div>
+      </th>
+      ${dias.map(d => {
+        const citas = porCelda[`${t.id}|${d}`] || [];
+        const minutos = citas.reduce((s, e) => s + e.extendedProps.duracion_min, 0);
+        return `<td class="eq-celda ${d === hoyISO() ? 'eq-hoy' : ''}" data-fecha="${d}" data-tecnico="${t.id}">
+          ${citas.map(tarjetaEquipo).join('')}
+          ${citas.length ? `<div class="eq-carga">${textoDuracion(minutos)}</div>` : ''}
+        </td>`;
+      }).join('')}
+    </tr>`).join('');
+
+    tablaEquipo.innerHTML = cabecera + `<tbody>${cuerpo}</tbody>`;
+  }
+
+  function cargarEquipo() {
+    const token = ++tokenEquipo;
+    pedirJSON(urlEventos(equipoInicio, sumarDias(equipoInicio, 7)))
+      .then(eventos => { if (token === tokenEquipo) pintarEquipo(eventos); })
+      .catch(() => toast('❌ No se pudo cargar la vista Equipo', 'error'));
+  }
+
+  function moverSemanaEquipo(inicio) {
+    equipoInicio = inicio;
+    cal.gotoDate(inicio);
+    cargarEquipo();
+  }
+
+  function mostrarEquipo(activa) {
+    elCalendario.classList.toggle('d-none', activa);
+    elEquipo.classList.toggle('d-none', !activa);
+    if (activa) {
+      equipoInicio = lunesDe(fechaLocal(cal.getDate()));
+      cargarEquipo();
+    } else {
+      cal.updateSize();
+    }
+  }
+
+  if (PUEDE_EDITAR) {
+    document.getElementById('equipo-prev').addEventListener('click', () => moverSemanaEquipo(sumarDias(equipoInicio, -7)));
+    document.getElementById('equipo-next').addEventListener('click', () => moverSemanaEquipo(sumarDias(equipoInicio, 7)));
+    document.getElementById('equipo-hoy').addEventListener('click', () => moverSemanaEquipo(lunesDe(hoyISO())));
+
+    tablaEquipo.addEventListener('click', e => {
+      const tarjeta = e.target.closest('.eq-card');
+      if (tarjeta) abrirDetalle(eventosEquipo[tarjeta.dataset.id]);
+    });
+
+    tablaEquipo.addEventListener('dragstart', e => {
+      const tarjeta = e.target.closest('.eq-card');
+      if (tarjeta) e.dataTransfer.setData('text/plain', tarjeta.dataset.id);
+    });
+
+    tablaEquipo.addEventListener('dragover', e => {
+      const celda = e.target.closest('.eq-celda');
+      if (!celda) return;
+      e.preventDefault();
+      celda.classList.add('eq-destino');
+    });
+
+    tablaEquipo.addEventListener('dragleave', e => {
+      const celda = e.target.closest('.eq-celda');
+      if (celda && !celda.contains(e.relatedTarget)) celda.classList.remove('eq-destino');
+    });
+
+    tablaEquipo.addEventListener('drop', e => {
+      const celda = e.target.closest('.eq-celda');
+      if (!celda) return;
+      e.preventDefault();
+      celda.classList.remove('eq-destino');
+
+      const ev = eventosEquipo[e.dataTransfer.getData('text/plain')];
+      if (!ev) return;
+      const p = ev.extendedProps;
+      const filaOrigen = filaDeTecnico(p);
+      const filaDestino = Number(celda.dataset.tecnico);
+      if (celda.dataset.fecha === p.fecha && filaDestino === filaOrigen) return;
+
+      const cuerpo = { fecha_cita: celda.dataset.fecha };
+      if (filaDestino !== filaOrigen) cuerpo.asignado_a = filaDestino || null;
+      guardarCita(ev.id, cuerpo)
+        .then(d => { informarGuardado(d); refrescarTodo(); })
+        .catch(fallo);
+    });
+  }
+
+  // ── Botones y filtros ────────────────────────────────────────────────────
   document.querySelectorAll('#vista-btns button').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('#vista-btns button').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      cal.changeView(this.dataset.view);
+    btn.addEventListener('click', function () {
+      const anterior = vistaActual;
+      vistaActual = this.dataset.view;
+      sincronizarBotones(vistaActual);
+      if (vistaActual === 'equipo') {
+        mostrarEquipo(true);
+      } else {
+        if (anterior === 'equipo') mostrarEquipo(false);
+        cal.changeView(vistaActual);
+      }
+      guardarPrefs();
     });
   });
 
-  if (filtroTecnico) filtroTecnico.addEventListener('change', () => { cal.refetchEvents(); cargarHoy(fechaActiva); });
-  if (filtroTipo)    filtroTipo.addEventListener('change',    () => { cal.refetchEvents(); cargarHoy(fechaActiva); });
+  function alCambiarFiltros() {
+    guardarPrefs();
+    cal.refetchEvents();
+    if (vistaActual === 'equipo') cargarEquipo();
+  }
+
+  [filtroTecnico, filtroTipo, filtroEstado, toggleTodos].forEach(el => {
+    if (el) el.addEventListener('change', alCambiarFiltros);
+  });
+
+  document.querySelectorAll('.eb-tecnico-row').forEach(el => {
+    el.addEventListener('click', function () {
+      if (!filtroTecnico) return;
+      const tid = this.dataset.tecnicoId;
+      filtroTecnico.value = filtroTecnico.value === tid ? '' : tid;
+      alCambiarFiltros();
+    });
+  });
+
+  // ── Estado inicial ───────────────────────────────────────────────────────
+  sincronizarBotones(vistaActual);
+  if (vistaActual === 'equipo') mostrarEquipo(true);
 });
 </script>
 
@@ -491,18 +759,10 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 #calendario .fc-col-header-cell a { color: #fff !important; }
 
-/* ── Slot de hora ────────────────────────────────────────────────────────── */
-#calendario .fc-timegrid-slot        { height: 2.4em; }
-#calendario .fc-timegrid-slot-label  { font-size: 0.72rem; font-weight: 600; color: #666; }
-#calendario .fc-timegrid-axis        { font-size: 0.72rem; }
-
-/* ── Indicador de hora actual ────────────────────────────────────────────── */
-#calendario .fc-timegrid-now-indicator-line {
-  border-color: #dc3545; border-width: 2px;
-}
-#calendario .fc-timegrid-now-indicator-arrow {
-  border-top-color: #dc3545; border-bottom-color: #dc3545;
-}
+/* ── Días compactos: la altura la marcan los avisos ───────────────────────── */
+#calendario .fc-daygrid-day-events { margin-bottom: 2px; min-height: 0; }
+#calendario .fc-daygrid-event-harness { margin-bottom: 3px; }
+#calendario .fc-event-main { white-space: normal; }
 
 /* ── Eventos ──────────────────────────────────────────────────────────────── */
 #calendario .fc-event {
@@ -536,12 +796,28 @@ document.addEventListener('DOMContentLoaded', function () {
 #calendario .fc-list-day-text,
 #calendario .fc-list-day-side-text  { color: #fff !important; font-weight: 700; }
 
-/* ── Panel Hoy ───────────────────────────────────────────────────────────── */
-.hoy-item:hover { background: #f8f9fa; }
-.hoy-item { transition: background .1s; }
-
 /* ── Botón técnico ───────────────────────────────────────────────────────── */
 .eb-tecnico-row:hover { background: rgba(0,0,0,.04); border-radius: 6px; }
+
+/* ── Vista Equipo ────────────────────────────────────────────────────────── */
+#equipo-tabla { table-layout: fixed; min-width: 860px; font-size: 0.75rem; }
+#equipo-tabla .eq-nombre {
+  width: 130px; position: sticky; left: 0; z-index: 1; background: #f8f9fa;
+}
+#equipo-tabla .eq-dia {
+  background: #0077b6; color: #fff; text-align: center;
+  text-transform: capitalize; font-size: 0.75rem;
+}
+#equipo-tabla .eq-dia.eq-hoy { background: #005f93; }
+#equipo-tabla .eq-celda { vertical-align: top; padding: 3px; height: 30px; }
+#equipo-tabla .eq-celda.eq-hoy { background: #eef6fd; }
+#equipo-tabla .eq-celda.eq-destino { outline: 2px dashed #0077b6; outline-offset: -2px; background: #e8f4fd; }
+.eq-card {
+  border-radius: 4px; padding: 2px 4px; margin-bottom: 3px; line-height: 1.2;
+  cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.2); overflow: hidden;
+}
+.eq-card[draggable="true"] { cursor: grab; }
+.eq-carga { text-align: right; color: #6c757d; font-size: 0.68rem; font-weight: 600; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 576px) {

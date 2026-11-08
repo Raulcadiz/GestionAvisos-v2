@@ -1,3 +1,4 @@
+import html
 import os
 import ssl
 import urllib.request
@@ -186,6 +187,50 @@ def notificar_cambio_estado(aviso, estado_anterior: str) -> bool:
         lineas.append(f'📝 {aviso.notas[:150]}')
 
     return enviar_mensaje('\n'.join(lineas))
+
+
+def _chat_tecnico(tecnico) -> str:
+    return (tecnico.telegram_chat_id or '').strip() if tecnico else ''
+
+
+def notificar_cita_tecnico(aviso, cita_anterior: str, cita_nueva: str,
+                           tecnico_nuevo, tecnico_anterior, actor_id=None) -> None:
+    """Avisa al técnico de un cambio de cita o asignación (nunca a quien hizo el cambio)."""
+    cliente = html.escape(aviso.nombre_cliente or '')
+    direccion = html.escape(', '.join(p for p in (aviso.calle, aviso.localidad) if p))
+    cabecera = [f'👤 <b>{cliente}</b>  📞 {html.escape(aviso.telefono or "")}']
+    if direccion:
+        cabecera.append(f'📍 {direccion}')
+
+    reasignado = (tecnico_nuevo.id if tecnico_nuevo else None) != (
+        tecnico_anterior.id if tecnico_anterior else None)
+
+    if tecnico_nuevo and tecnico_nuevo.id != actor_id and _chat_tecnico(tecnico_nuevo):
+        if reasignado:
+            titulo = f'📌 <b>Aviso #{aviso.id} asignado a ti</b>'
+            detalle = f'🗓️ {html.escape(cita_nueva)}'
+        else:
+            titulo = f'🗓️ <b>Cita del aviso #{aviso.id} modificada</b>'
+            detalle = f'<i>{html.escape(cita_anterior)}</i> → <b>{html.escape(cita_nueva)}</b>'
+        enviar_mensaje_a(_chat_tecnico(tecnico_nuevo), '\n'.join([titulo, *cabecera, detalle]))
+
+    if (reasignado and tecnico_anterior and tecnico_anterior.id != actor_id
+            and _chat_tecnico(tecnico_anterior)):
+        enviar_mensaje_a(_chat_tecnico(tecnico_anterior), '\n'.join([
+            f'↩️ <b>Aviso #{aviso.id} ya no está asignado a ti</b>',
+            *cabecera,
+            f'🗓️ {html.escape(cita_anterior)}',
+        ]))
+
+
+def notificar_resumen_lote(tecnico, lineas) -> bool:
+    """Envía a un técnico un único mensaje con los cambios hechos en bloque."""
+    chat = _chat_tecnico(tecnico)
+    if not chat or not lineas:
+        return False
+    texto = '\n'.join([f'📋 <b>{len(lineas)} cambios en tus avisos</b>', '',
+                       *[html.escape(linea) for linea in lineas]])
+    return enviar_mensaje_a(chat, texto)
 
 
 def notificar_resumen_dia(avisos_hoy) -> bool:

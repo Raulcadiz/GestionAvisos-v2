@@ -43,6 +43,10 @@ def index():
         ).count(),
         'segunda_visita': bq.filter(Aviso.estado == 'segunda_visita').count(),
         'total': bq.filter(Aviso.estado != 'finalizado').count(),
+        'atrasados': bq.filter(
+            Aviso.fecha_cita < hoy,
+            Aviso.estado != 'finalizado'
+        ).count(),
     }
 
     avisos_hoy = _base_query().filter(

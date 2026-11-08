@@ -3,8 +3,8 @@ from datetime import date
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from flask import Blueprint, request, send_file
-from flask_login import login_required
+from flask import Blueprint, abort, request, send_file
+from flask_login import current_user, login_required
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
@@ -12,8 +12,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
+from avisos_servicio import filtrar_avisos, leer_filtros
 from models import Aviso, ESTADOS
-from extensions import db
 
 exports_bp = Blueprint('exports', __name__, url_prefix='/export')
 
@@ -23,25 +23,10 @@ ESTADO_LABELS = {key: label for key, label in ESTADOS}
 @exports_bp.route('/excel')
 @login_required
 def export_excel():
-    estado_filter = request.args.get('estado', '')
-    q = request.args.get('q', '').strip()
+    if not current_user.es_admin_o_superior:
+        abort(403)
 
-    query = Aviso.query
-
-    if estado_filter:
-        query = query.filter_by(estado=estado_filter)
-
-    if q:
-        like = f'%{q}%'
-        query = query.filter(
-            db.or_(
-                Aviso.nombre_cliente.ilike(like),
-                Aviso.telefono.ilike(like),
-                Aviso.calle.ilike(like),
-            )
-        )
-
-    avisos = query.order_by(Aviso.fecha_aviso.desc()).all()
+    avisos = filtrar_avisos(Aviso.query, leer_filtros(request.args)).all()
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -85,6 +70,7 @@ def export_excel():
     wb.save(output)
     output.seek(0)
 
+    estado_filter = request.args.get('estado', '')
     suffix = f'_{estado_filter}' if estado_filter else ''
     filename = f'avisos{suffix}_{date.today().strftime("%Y%m%d")}.xlsx'
 
@@ -102,6 +88,8 @@ def export_excel():
 @login_required
 def albaran_pdf(id):
     aviso = Aviso.query.get_or_404(id)
+    if not current_user.puede_ver_economico(aviso):
+        abort(403)
 
     output = io.BytesIO()
     doc = SimpleDocTemplate(

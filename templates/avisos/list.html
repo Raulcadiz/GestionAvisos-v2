@@ -6,34 +6,101 @@
   <h2 class="h4 mb-0">📂 Todos los Avisos</h2>
   <div class="d-flex gap-2">
     {% if current_user.es_admin_o_superior %}
-    <a href="{{ url_for('exports.export_excel') }}{% if q or estado_filter %}?q={{ q }}&estado={{ estado_filter }}{% endif %}"
-       class="btn btn-sm btn-outline-success">📊 Excel</a>
+    <a href="{{ url_for('exports.export_excel', **filtros) }}" class="btn btn-sm btn-outline-success">📊 Excel</a>
     <a href="{{ url_for('avisos.create') }}" class="btn btn-sm btn-success">+ Nuevo</a>
     {% endif %}
   </div>
 </div>
 
 <!-- Filtros -->
+{% set mas_filtros = filtros.get('tipo') or filtros.get('tecnico') or filtros.get('cobro') or filtros.get('desde') or filtros.get('hasta') or filtros.get('sin_cita') or filtros.get('atrasados') or filtros.get('orden', 'aviso_desc') != 'aviso_desc' %}
 <form method="GET" action="{{ url_for('avisos.list_all') }}" class="card shadow-sm border-0 mb-3">
   <div class="card-body py-2">
     <div class="row g-2 align-items-end">
       <div class="col-12 col-md-5">
         <input type="text" name="q" value="{{ q }}" class="form-control"
-               placeholder="🔍 Buscar por nombre, teléfono o calle..." id="search-input">
+               placeholder="🔍 Nombre, teléfono, calle, localidad, aparato o marca..." id="search-input">
       </div>
-      <div class="col-12 col-md-4">
-        <select name="estado" class="form-select">
+      <div class="col-12 col-md-3">
+        <select name="estado" class="form-select" aria-label="Estado">
           <option value="">Todos los estados</option>
           {% for key, label in estados %}
-            <option value="{{ key }}" {% if estado_filter == key %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ key }}" {% if filtros.get('estado') == key %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-6 col-md-2">
+      <div class="col-5 col-md-2">
         <button type="submit" class="btn btn-primary w-100">Buscar</button>
       </div>
-      <div class="col-6 col-md-1">
-        <a href="{{ url_for('avisos.list_all') }}" class="btn btn-outline-secondary w-100">✕</a>
+      <div class="col-5 col-md-1">
+        <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="collapse"
+                data-bs-target="#mas-filtros" title="Más filtros" aria-label="Más filtros">⚙️</button>
+      </div>
+      <div class="col-2 col-md-1">
+        <a href="{{ url_for('avisos.list_all') }}" class="btn btn-outline-secondary w-100" title="Limpiar filtros">✕</a>
+      </div>
+    </div>
+
+    <div class="collapse {% if mas_filtros %}show{% endif %}" id="mas-filtros">
+      <div class="row g-2 mt-1 align-items-end">
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-0">Tipo</label>
+          <select name="tipo" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for key, label, icono in tipos_servicio %}
+              <option value="{{ key }}" {% if filtros.get('tipo') == key %}selected{% endif %}>{{ icono }} {{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if current_user.es_admin %}
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-0">Técnico</label>
+          <select name="tecnico" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="sin" {% if filtros.get('tecnico') == 'sin' %}selected{% endif %}>Sin asignar</option>
+            {% for t in tecnicos %}
+              <option value="{{ t.id }}" {% if filtros.get('tecnico') == t.id|string %}selected{% endif %}>{{ t.display_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-0">Cobro</label>
+          <select name="cobro" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for key, label in cobro_estados %}
+              <option value="{{ key }}" {% if filtros.get('cobro') == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-0">Cita desde</label>
+          <input type="date" name="desde" value="{{ filtros.get('desde', '') }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-0">Cita hasta</label>
+          <input type="date" name="hasta" value="{{ filtros.get('hasta', '') }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-0">Ordenar por</label>
+          <select name="orden" class="form-select form-select-sm">
+            {% for key, label in ordenes %}
+              <option value="{{ key }}" {% if filtros.get('orden', 'aviso_desc') == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 d-flex gap-3 flex-wrap">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" name="sin_cita" value="1" id="f-sin-cita"
+                   {% if filtros.get('sin_cita') %}checked{% endif %}>
+            <label class="form-check-label small" for="f-sin-cita">Sin cita</label>
+          </div>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" name="atrasados" value="1" id="f-atrasados"
+                   {% if filtros.get('atrasados') %}checked{% endif %}>
+            <label class="form-check-label small" for="f-atrasados">Atrasados</label>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -41,9 +108,17 @@
 
 <!-- Resultados -->
 {% if avisos.items %}
-  <div class="text-muted small mb-2">
-    {{ avisos.total }} aviso{{ 's' if avisos.total != 1 }} encontrado{{ 's' if avisos.total != 1 }}
-    {% if q %} · Búsqueda: "<strong>{{ q }}</strong>"{% endif %}
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="text-muted small">
+      {{ avisos.total }} aviso{{ 's' if avisos.total != 1 }} encontrado{{ 's' if avisos.total != 1 }}
+      {% if q %} · Búsqueda: "<strong>{{ q }}</strong>"{% endif %}
+    </div>
+    {% if seleccionable %}
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" id="check-todos">
+      <label class="form-check-label small" for="check-todos">Seleccionar página</label>
+    </div>
+    {% endif %}
   </div>
 
   {% for aviso in avisos.items %}
@@ -56,13 +131,13 @@
     <ul class="pagination pagination-sm justify-content-center flex-wrap">
       {% if avisos.has_prev %}
         <li class="page-item">
-          <a class="page-link" href="{{ url_for('avisos.list_all', page=avisos.prev_num, q=q, estado=estado_filter) }}">‹ Anterior</a>
+          <a class="page-link" href="{{ url_for('avisos.list_all', page=avisos.prev_num, **filtros) }}">‹ Anterior</a>
         </li>
       {% endif %}
       {% for p in avisos.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
         {% if p %}
           <li class="page-item {% if p == avisos.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('avisos.list_all', page=p, q=q, estado=estado_filter) }}">{{ p }}</a>
+            <a class="page-link" href="{{ url_for('avisos.list_all', page=p, **filtros) }}">{{ p }}</a>
           </li>
         {% else %}
           <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -70,7 +145,7 @@
       {% endfor %}
       {% if avisos.has_next %}
         <li class="page-item">
-          <a class="page-link" href="{{ url_for('avisos.list_all', page=avisos.next_num, q=q, estado=estado_filter) }}">Siguiente ›</a>
+          <a class="page-link" href="{{ url_for('avisos.list_all', page=avisos.next_num, **filtros) }}">Siguiente ›</a>
         </li>
       {% endif %}
     </ul>
@@ -81,7 +156,104 @@
   <div class="text-center py-5 text-muted">
     <div style="font-size:3rem">📋</div>
     <p class="mt-2">No se encontraron avisos{% if q %} para "<strong>{{ q }}</strong>"{% endif %}</p>
+    {% if current_user.es_admin_o_superior %}
     <a href="{{ url_for('avisos.create') }}" class="btn btn-success">+ Crear nuevo aviso</a>
+    {% endif %}
   </div>
+{% endif %}
+
+{% if seleccionable %}
+<!-- Barra de acciones en bloque -->
+<div id="barra-lote" class="card shadow-lg border-0 position-fixed start-50 translate-middle-x d-none"
+     style="z-index:1040;width:min(720px,calc(100% - 24px))">
+  <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <strong class="small"><span id="lote-n">0</span> seleccionados</strong>
+    <select id="lote-accion" class="form-select form-select-sm" style="width:auto" aria-label="Acción">
+      <option value="estado">Cambiar estado</option>
+      <option value="tecnico">Asignar técnico</option>
+      <option value="fecha">Mover a fecha</option>
+    </select>
+    <select id="lote-estado" class="form-select form-select-sm lote-valor" style="width:auto" aria-label="Estado">
+      {% for key, label in estados %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+    </select>
+    <select id="lote-tecnico" class="form-select form-select-sm lote-valor d-none" style="width:auto" aria-label="Técnico">
+      <option value="">— Sin asignar —</option>
+      {% for t in tecnicos %}<option value="{{ t.id }}">{{ t.display_name }}</option>{% endfor %}
+    </select>
+    <input id="lote-fecha" type="date" class="form-control form-control-sm lote-valor d-none" style="width:auto" aria-label="Fecha">
+    <button id="lote-aplicar" type="button" class="btn btn-sm btn-primary">Aplicar</button>
+    <button id="lote-cancelar" type="button" class="btn btn-sm btn-light">Cancelar</button>
+  </div>
+</div>
+<style>
+  #barra-lote { bottom: 16px; }
+  @media (max-width: 991.98px) { #barra-lote { bottom: 76px; } }
+</style>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if seleccionable %}
+<script>
+(function () {
+  const barra    = document.getElementById('barra-lote');
+  const contador = document.getElementById('lote-n');
+  const accion   = document.getElementById('lote-accion');
+  const todos    = document.getElementById('check-todos');
+  const aplicarBtn = document.getElementById('lote-aplicar');
+  const checks   = () => [...document.querySelectorAll('.aviso-check')];
+  const marcados = () => checks().filter(c => c.checked);
+
+  function actualizarBarra() {
+    const n = marcados().length;
+    contador.textContent = n;
+    barra.classList.toggle('d-none', n === 0);
+    if (todos) todos.checked = n > 0 && n === checks().length;
+  }
+
+  function mostrarValor() {
+    const visible = 'lote-' + accion.value;
+    document.querySelectorAll('.lote-valor').forEach(el =>
+      el.classList.toggle('d-none', el.id !== visible));
+  }
+
+  document.addEventListener('change', e => {
+    if (e.target.classList.contains('aviso-check')) actualizarBarra();
+  });
+  if (todos) todos.addEventListener('change', () => {
+    checks().forEach(c => { c.checked = todos.checked; });
+    actualizarBarra();
+  });
+  accion.addEventListener('change', mostrarValor);
+  document.getElementById('lote-cancelar').addEventListener('click', () => {
+    checks().forEach(c => { c.checked = false; });
+    actualizarBarra();
+  });
+
+  aplicarBtn.addEventListener('click', () => {
+    const ids = marcados().map(c => Number(c.value));
+    const valor = document.getElementById('lote-' + accion.value).value;
+    if (accion.value === 'fecha' && !valor) { alert('Indica una fecha.'); return; }
+    if (!confirm(`¿Aplicar el cambio a ${ids.length} aviso${ids.length === 1 ? '' : 's'}?`)) return;
+
+    aplicarBtn.disabled = true;
+    fetch('{{ url_for("avisos.lote") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, accion: accion.value, valor }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.ok) { alert(d.error || 'No se pudo aplicar el cambio.'); return; }
+        if (d.omitidos.length) {
+          alert(`Actualizados: ${d.actualizados}. Omitidos por permisos: ${d.omitidos.map(i => '#' + i).join(', ')}.`);
+        }
+        location.reload();
+      })
+      .catch(() => alert('Error de red. Inténtalo de nuevo.'))
+      .finally(() => { aplicarBtn.disabled = false; });
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

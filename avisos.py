@@ -1,5 +1,6 @@
 import os
 import uuid
+from collections import defaultdict
 from datetime import date
 
 from flask import (Blueprint, render_template, redirect, url_for,
@@ -7,12 +8,20 @@ from flask import (Blueprint, render_template, redirect, url_for,
                    jsonify)
 from flask_login import login_required, current_user
 from PIL import Image
+from sqlalchemy.orm import joinedload, selectinload
 
+from avisos_servicio import (ESTADOS_VALIDOS, ORDENES, aplicar_cita, filtrar_avisos,
+                             foto_aviso, leer_filtros, notificar_cambio_cita, parse_duracion,
+                             parse_fecha, parse_hora, registrar_cambios, tecnicos_asignables,
+                             texto_cita)
 from extensions import db
-from models import Aviso, Photo, ESTADOS, ELECTRODOMESTICOS, COBRO_ESTADOS, TIPOS_SERVICIO, ORIGENES, User
-from telegram_bot import notificar_aviso_nuevo, notificar_cambio_estado
+from models import (Aviso, Photo, ESTADOS, ELECTRODOMESTICOS, COBRO_ESTADOS, TIPOS_SERVICIO,
+                    ORIGENES, DURACIONES, DURACION_DEFECTO, User)
+from telegram_bot import notificar_aviso_nuevo, notificar_cambio_estado, notificar_resumen_lote
 
 avisos_bp = Blueprint('avisos', __name__, url_prefix='/avisos')
+
+MAX_AVISOS_LOTE = 200
 
 
 def allowed_file(filename):
@@ -58,18 +67,6 @@ def uploaded_file(filename):
 
 # ── Lista y búsqueda ───────────────────────────────────────────────────────
 
-def _get_tecnicos_asignables():
-    """Devuelve la lista de técnicos/repartidores que el admin actual puede asignar."""
-    if current_user.es_super_admin:
-        return User.query.filter(
-            User.is_active == True,
-            User.rol.in_(['tecnico', 'repartidor'])
-        ).order_by(User.nombre_completo).all()
-    elif current_user.es_admin:
-        return User.query.filter_by(is_active=True, creado_por_id=current_user.id).order_by(User.nombre_completo).all()
-    return []
-
-
 def _get_admins():
     """Devuelve la lista de admins (para super_admin al asignar admin a un aviso)."""
     return User.query.filter(
@@ -78,49 +75,75 @@ def _get_admins():
     ).order_by(User.nombre_completo).all()
 
 
+def _render_form(aviso, **extra):
+    return render_template('avisos/form.html',
+                           aviso=aviso,
+                           estados=ESTADOS,
+                           cobro_estados=COBRO_ESTADOS,
+                           electrodomesticos=ELECTRODOMESTICOS,
+                           tipos_servicio=TIPOS_SERVICIO,
+                           origenes=ORIGENES,
+                           duraciones=DURACIONES,
+                           duracion_defecto=DURACION_DEFECTO,
+                           tecnicos=tecnicos_asignables(current_user),
+                           admins=_get_admins(),
+                           **extra)
+
+
+def _leer_fechas_form():
+    """Valida las fechas del formulario. Lanza ValueError con un mensaje legible."""
+    return (parse_fecha(request.form.get('fecha_aviso', '')),
+            parse_fecha(request.form.get('fecha_cita', '')),
+            parse_hora(request.form.get('hora_cita', '')),
+            parse_duracion(request.form.get('duracion_min', '')))
+
+
+def _float_or_none(val):
+    try:
+        return float(val) if val.strip() else None
+    except (ValueError, AttributeError):
+        return None
+
+
+def _guardar_fotos(aviso):
+    for f in request.files.getlist('photos'):
+        if f and f.filename and allowed_file(f.filename):
+            db.session.add(Photo(
+                aviso_id=aviso.id,
+                filename=save_photo(f),
+                original_name=f.filename,
+                uploaded_by=current_user.id,
+            ))
+
+
 @avisos_bp.route('/')
 @login_required
 def list_all():
-    q = request.args.get('q', '').strip()
-    estado_filter = request.args.get('estado', '')
-    tipo_filter = request.args.get('tipo', '')
+    filtros = leer_filtros(request.args)
+    if not current_user.es_admin:
+        filtros.pop('tecnico', None)
+        filtros.pop('cobro', None)
     page = request.args.get('page', 1, type=int)
 
-    query = Aviso.query
-    # Trabajadores solo ven sus avisos
-    if not current_user.es_admin:
-        query = query.filter(
-            db.or_(Aviso.asignado_a == current_user.id,
-                   Aviso.created_by == current_user.id)
-        )
-
-    if q:
-        like = f'%{q}%'
-        query = query.filter(
-            db.or_(
-                Aviso.nombre_cliente.ilike(like),
-                Aviso.telefono.ilike(like),
-                Aviso.calle.ilike(like),
-            )
-        )
-
-    if estado_filter:
-        query = query.filter_by(estado=estado_filter)
-    if tipo_filter:
-        query = query.filter_by(tipo_servicio=tipo_filter)
-
-    avisos = query.order_by(Aviso.fecha_aviso.desc()).paginate(
+    query = filtrar_avisos(Aviso.visibles_para(current_user), filtros).options(
+        joinedload(Aviso.tecnico),
+        joinedload(Aviso.admin_asignado),
+        selectinload(Aviso.photos),
+    )
+    avisos = query.paginate(
         page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
     )
 
     return render_template('avisos/list.html',
                            avisos=avisos,
-                           q=q,
-                           estado_filter=estado_filter,
-                           tipo_filter=tipo_filter,
+                           filtros=filtros,
+                           q=filtros.get('q', ''),
                            estados=ESTADOS,
                            tipos_servicio=TIPOS_SERVICIO,
-                           cobro_estados=COBRO_ESTADOS)
+                           cobro_estados=COBRO_ESTADOS,
+                           ordenes=ORDENES,
+                           tecnicos=tecnicos_asignables(current_user),
+                           seleccionable=current_user.es_admin_o_superior)
 
 
 # ── API búsqueda JSON ──────────────────────────────────────────────────────
@@ -133,7 +156,7 @@ def api_search():
         return jsonify([])
 
     like = f'%{q}%'
-    resultados = Aviso.query.filter(
+    resultados = Aviso.visibles_para(current_user).filter(
         db.or_(
             Aviso.nombre_cliente.ilike(like),
             Aviso.telefono.ilike(like),
@@ -161,10 +184,17 @@ def api_search():
 @login_required
 def detail(id):
     aviso = Aviso.query.get_or_404(id)
+    if not aviso.puede_ver(current_user):
+        flash('No tienes permiso para ver este aviso.', 'danger')
+        return redirect(url_for('avisos.list_all'))
+
+    puede_ver_economico = current_user.puede_ver_economico(aviso)
+    historial = [h for h in aviso.historial if h.campo != 'cobro' or puede_ver_economico]
     return render_template('avisos/detail.html',
                            aviso=aviso,
                            estados=ESTADOS,
-                           puede_ver_economico=current_user.puede_ver_economico(aviso),
+                           historial=historial,
+                           puede_ver_economico=puede_ver_economico,
                            puede_editar=aviso.puede_editar(current_user))
 
 
@@ -179,11 +209,15 @@ def create():
         return redirect(url_for('dashboard.index'))
 
     if request.method == 'POST':
-        def _float_or_none(val):
-            try:
-                return float(val) if val.strip() else None
-            except (ValueError, AttributeError):
-                return None
+        try:
+            fecha_aviso, fecha_cita, hora_cita, duracion = _leer_fechas_form()
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return _render_form(None)
+
+        estado = request.form.get('estado', 'pendiente')
+        if estado not in ESTADOS_VALIDOS:
+            estado = 'pendiente'
 
         # Determinar admin_asignado_id
         if current_user.es_super_admin:
@@ -201,7 +235,7 @@ def create():
             marca=request.form.get('marca', '').strip(),
             descripcion=request.form.get('descripcion', '').strip(),
             notas=request.form.get('notas', '').strip(),
-            estado=request.form.get('estado', 'pendiente'),
+            estado=estado,
             tipo_servicio=request.form.get('tipo_servicio', 'reparacion'),
             origen=request.form.get('origen', 'particular'),
             created_by=current_user.id,
@@ -216,61 +250,28 @@ def create():
             asignado_a=request.form.get('asignado_a', type=int) or None,
         )
 
-        fecha_aviso_str = request.form.get('fecha_aviso', '')
-        fecha_cita_str  = request.form.get('fecha_cita', '')
-        hora_cita_str   = request.form.get('hora_cita', '').strip()
-        if fecha_aviso_str:
-            from datetime import datetime
-            aviso.fecha_aviso = datetime.strptime(fecha_aviso_str, '%Y-%m-%d').date()
-        if fecha_cita_str:
-            from datetime import datetime
-            aviso.fecha_cita = datetime.strptime(fecha_cita_str, '%Y-%m-%d').date()
-        aviso.hora_cita = hora_cita_str or None
+        if fecha_aviso:
+            aviso.fecha_aviso = fecha_aviso
+        aplicar_cita(aviso, fecha_cita, hora_cita, duracion)
         aviso.items_instalacion = request.form.get('items_instalacion_json', '').strip() or None
 
         if not aviso.nombre_cliente or not aviso.telefono:
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')
-            return render_template('avisos/form.html',
-                                   aviso=None,
-                                   estados=ESTADOS,
-                                   cobro_estados=COBRO_ESTADOS,
-                                   electrodomesticos=ELECTRODOMESTICOS,
-                                   tipos_servicio=TIPOS_SERVICIO,
-                                   origenes=ORIGENES,
-                                   tecnicos=_get_tecnicos_asignables(),
-                                   admins=_get_admins())
+            return _render_form(None)
 
         db.session.add(aviso)
         db.session.flush()  # Para obtener el ID antes de guardar fotos
-
-        # Guardar fotos
-        files = request.files.getlist('photos')
-        for f in files:
-            if f and f.filename and allowed_file(f.filename):
-                stored = save_photo(f)
-                photo = Photo(
-                    aviso_id=aviso.id,
-                    filename=stored,
-                    original_name=f.filename,
-                    uploaded_by=current_user.id,
-                )
-                db.session.add(photo)
-
+        _guardar_fotos(aviso)
         db.session.commit()
         notificar_aviso_nuevo(aviso)
         flash(f'Aviso #{aviso.id} creado correctamente.', 'success')
         return redirect(url_for('avisos.detail', id=aviso.id))
 
-    return render_template('avisos/form.html',
-                           aviso=None,
-                           estados=ESTADOS,
-                           cobro_estados=COBRO_ESTADOS,
-                           electrodomesticos=ELECTRODOMESTICOS,
-                           tipos_servicio=TIPOS_SERVICIO,
-                           origenes=ORIGENES,
-                           tecnicos=_get_tecnicos_asignables(),
-                           admins=_get_admins(),
-                           prefill_fecha_cita=request.args.get('fecha_cita', ''))
+    return _render_form(None,
+                        prefill_fecha_cita=request.args.get('fecha_cita', ''),
+                        prefill_hora_cita=request.args.get('hora_cita', ''),
+                        prefill_duracion=request.args.get('duracion', type=int),
+                        prefill_asignado=request.args.get('asignado_a', type=int))
 
 
 # ── Editar ─────────────────────────────────────────────────────────────────
@@ -286,6 +287,14 @@ def edit(id):
         return redirect(url_for('avisos.detail', id=id))
 
     if request.method == 'POST':
+        try:
+            fecha_aviso, fecha_cita, hora_cita, duracion = _leer_fechas_form()
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return _render_form(aviso)
+
+        antes = foto_aviso(aviso)
+
         # Solo admins con permiso pueden cambiar datos principales del cliente/aparato
         if current_user.es_admin_o_superior:
             aviso.nombre_cliente = request.form.get('nombre_cliente', '').strip()
@@ -298,13 +307,9 @@ def edit(id):
         aviso.marca = request.form.get('marca', '').strip()
         aviso.descripcion = request.form.get('descripcion', '').strip()
         aviso.notas = request.form.get('notas', '').strip()
-        aviso.estado = request.form.get('estado', aviso.estado)
-
-        def _float_or_none(val):
-            try:
-                return float(val) if val.strip() else None
-            except (ValueError, AttributeError):
-                return None
+        nuevo_estado = request.form.get('estado', aviso.estado)
+        if nuevo_estado in ESTADOS_VALIDOS:
+            aviso.estado = nuevo_estado
 
         if current_user.es_admin_o_superior:
             aviso.precio_mano_obra  = _float_or_none(request.form.get('precio_mano_obra', ''))
@@ -322,60 +327,28 @@ def edit(id):
             admin_raw = request.form.get('admin_asignado_id', '')
             aviso.admin_asignado_id = int(admin_raw) if admin_raw.isdigit() else None
 
-        fecha_aviso_str = request.form.get('fecha_aviso', '')
-        fecha_cita_str  = request.form.get('fecha_cita', '')
-        hora_cita_str   = request.form.get('hora_cita', '').strip()
-        if fecha_aviso_str:
-            from datetime import datetime
-            aviso.fecha_aviso = datetime.strptime(fecha_aviso_str, '%Y-%m-%d').date()
-        if fecha_cita_str:
-            from datetime import datetime
-            aviso.fecha_cita = datetime.strptime(fecha_cita_str, '%Y-%m-%d').date()
-        elif request.form.get('limpiar_cita'):
-            aviso.fecha_cita = None
-            aviso.hora_cita  = None
-        aviso.hora_cita = hora_cita_str or None
+        if fecha_aviso:
+            aviso.fecha_aviso = fecha_aviso
+        if request.form.get('limpiar_cita'):
+            aplicar_cita(aviso, None, None, duracion)
+        else:
+            # Con la fecha en blanco se conserva la cita que ya tuviera
+            aplicar_cita(aviso, fecha_cita or aviso.fecha_cita, hora_cita, duracion)
         items_json = request.form.get('items_instalacion_json', '').strip()
         aviso.items_instalacion = items_json or None
 
         if current_user.es_admin_o_superior and (not aviso.nombre_cliente or not aviso.telefono):
             flash('El nombre del cliente y el teléfono son obligatorios.', 'danger')
-            return render_template('avisos/form.html',
-                                   aviso=aviso,
-                                   estados=ESTADOS,
-                                   cobro_estados=COBRO_ESTADOS,
-                                   electrodomesticos=ELECTRODOMESTICOS,
-                                   tipos_servicio=TIPOS_SERVICIO,
-                                   origenes=ORIGENES,
-                                   tecnicos=_get_tecnicos_asignables(),
-                                   admins=_get_admins())
+            return _render_form(aviso)
 
-        # Fotos
-        files = request.files.getlist('photos')
-        for f in files:
-            if f and f.filename and allowed_file(f.filename):
-                stored = save_photo(f)
-                photo = Photo(
-                    aviso_id=aviso.id,
-                    filename=stored,
-                    original_name=f.filename,
-                    uploaded_by=current_user.id,
-                )
-                db.session.add(photo)
-
+        _guardar_fotos(aviso)
+        registrar_cambios(aviso, current_user, antes)
         db.session.commit()
+        notificar_cambio_cita(aviso, antes, current_user)
         flash('Aviso actualizado correctamente.', 'success')
         return redirect(url_for('avisos.detail', id=aviso.id))
 
-    return render_template('avisos/form.html',
-                           aviso=aviso,
-                           estados=ESTADOS,
-                           cobro_estados=COBRO_ESTADOS,
-                           electrodomesticos=ELECTRODOMESTICOS,
-                           tipos_servicio=TIPOS_SERVICIO,
-                           origenes=ORIGENES,
-                           tecnicos=_get_tecnicos_asignables(),
-                           admins=_get_admins())
+    return _render_form(aviso)
 
 
 # ── Cambiar estado (AJAX) ──────────────────────────────────────────────────
@@ -384,13 +357,17 @@ def edit(id):
 @login_required
 def change_estado(id):
     aviso = Aviso.query.get_or_404(id)
+    if not aviso.puede_editar(current_user):
+        return jsonify({'ok': False, 'error': 'Sin permiso para editar este aviso.'}), 403
+
     data = request.get_json(silent=True) or {}
     nuevo_estado = data.get('estado') or request.form.get('estado', '')
 
-    estados_validos = [e[0] for e in ESTADOS]
-    if nuevo_estado in estados_validos:
+    if nuevo_estado in ESTADOS_VALIDOS:
         estado_anterior = aviso.estado
+        antes = foto_aviso(aviso)
         aviso.estado = nuevo_estado
+        registrar_cambios(aviso, current_user, antes)
         db.session.commit()
         notificar_cambio_estado(aviso, estado_anterior)
         # Notificación WhatsApp al cliente (no bloquea si falla)
@@ -407,11 +384,113 @@ def change_estado(id):
     return jsonify({'ok': False, 'error': 'Estado no válido'}), 400
 
 
+# ── Acciones en bloque ─────────────────────────────────────────────────────
+
+def _preparar_lote(accion, valor):
+    """Valida la acción y devuelve una función que la aplica a un aviso."""
+    if accion == 'estado':
+        if valor not in ESTADOS_VALIDOS:
+            raise ValueError('Estado no válido.')
+        def aplicar(aviso):
+            aviso.estado = valor
+        return aplicar
+
+    if accion == 'tecnico':
+        tecnico_id = None
+        if valor not in (None, ''):
+            try:
+                tecnico_id = int(valor)
+            except (TypeError, ValueError):
+                raise ValueError('Técnico no válido.')
+            if tecnico_id not in {t.id for t in tecnicos_asignables(current_user)}:
+                raise ValueError('No puedes asignar a ese técnico.')
+        def aplicar(aviso):
+            aviso.asignado_a = tecnico_id
+        return aplicar
+
+    if accion == 'fecha':
+        fecha = parse_fecha(valor)
+        if fecha is None:
+            raise ValueError('Indica una fecha.')
+        def aplicar(aviso):
+            aplicar_cita(aviso, fecha, aviso.hora_cita)
+        return aplicar
+
+    raise ValueError('Acción no válida.')
+
+
+@avisos_bp.route('/lote', methods=['POST'])
+@login_required
+def lote():
+    if not current_user.es_admin_o_superior:
+        return jsonify({'ok': False, 'error': 'Sin permiso.'}), 403
+
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids')
+    if (not isinstance(ids, list) or not ids
+            or not all(isinstance(i, int) for i in ids)):
+        return jsonify({'ok': False, 'error': 'Selecciona al menos un aviso.'}), 400
+    if len(ids) > MAX_AVISOS_LOTE:
+        return jsonify({'ok': False,
+                        'error': f'Máximo {MAX_AVISOS_LOTE} avisos a la vez.'}), 400
+
+    try:
+        aplicar = _preparar_lote(data.get('accion'), data.get('valor'))
+    except ValueError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    avisos = {a.id: a for a in Aviso.query.filter(Aviso.id.in_(ids)).all()}
+    omitidos = []
+    actualizados = 0
+    resumen = defaultdict(list)  # técnico → líneas del mensaje
+
+    for aviso_id in dict.fromkeys(ids):
+        aviso = avisos.get(aviso_id)
+        if aviso is None or not aviso.puede_editar(current_user):
+            omitidos.append(aviso_id)
+            continue
+
+        antes = foto_aviso(aviso)
+        aplicar(aviso)
+        if not registrar_cambios(aviso, current_user, antes):
+            continue
+        actualizados += 1
+
+        cliente = aviso.nombre_cliente
+        if antes['tecnico_id'] != aviso.asignado_a:
+            if aviso.asignado_a:
+                resumen[aviso.asignado_a].append(f'📌 #{aviso.id} {cliente}: asignado a ti')
+            if antes['tecnico_id']:
+                resumen[antes['tecnico_id']].append(f'↩️ #{aviso.id} {cliente}: ya no es tuyo')
+        elif aviso.asignado_a:
+            if antes['estado'] != aviso.estado_label():
+                detalle = f"{antes['estado']} → {aviso.estado_label()}"
+            else:
+                detalle = f"{antes['cita']} → {texto_cita(aviso.fecha_cita, aviso.hora_cita)}"
+            resumen[aviso.asignado_a].append(f'🗓️ #{aviso.id} {cliente}: {detalle}')
+
+    db.session.commit()
+
+    for tecnico_id, lineas in resumen.items():
+        if tecnico_id == current_user.id:
+            continue
+        try:
+            notificar_resumen_lote(db.session.get(User, tecnico_id), lineas)
+        except Exception:
+            current_app.logger.exception('No se pudo enviar el resumen al técnico %s', tecnico_id)
+
+    return jsonify({'ok': True, 'actualizados': actualizados, 'omitidos': omitidos})
+
+
 # ── Duplicar aviso ─────────────────────────────────────────────────────────
 
 @avisos_bp.route('/<int:id>/duplicar', methods=['POST'])
 @login_required
 def duplicar(id):
+    if not current_user.es_admin_o_superior:
+        flash('No tienes permiso para duplicar avisos.', 'danger')
+        return redirect(url_for('avisos.list_all'))
+
     original = Aviso.query.get_or_404(id)
     nuevo = Aviso(
         nombre_cliente=original.nombre_cliente,
@@ -463,6 +542,9 @@ def delete_photo(aviso_id, photo_id):
     if photo.aviso_id != aviso_id:
         flash('Foto no encontrada en este aviso.', 'danger')
         return redirect(url_for('avisos.detail', id=aviso_id))
+    if not photo.aviso.puede_editar(current_user):
+        flash('No tienes permiso para eliminar esta foto.', 'danger')
+        return redirect(url_for('avisos.detail', id=aviso_id))
     delete_photo_file(photo.filename)
     db.session.delete(photo)
     db.session.commit()
@@ -475,7 +557,7 @@ def delete_photo(aviso_id, photo_id):
 @avisos_bp.route('/cliente/<telefono>')
 @login_required
 def customer_history(telefono):
-    avisos = Aviso.query.filter_by(
+    avisos = Aviso.visibles_para(current_user).filter_by(
         telefono=telefono
     ).order_by(Aviso.fecha_aviso.desc()).all()
 

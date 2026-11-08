@@ -224,7 +224,13 @@
         <div class="mb-3">
           <div class="text-muted small">Fecha cita</div>
           {% if aviso.fecha_cita %}
-          <div class="fw-semibold text-primary">🗓️ {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}</div>
+          <div class="fw-semibold text-primary">
+            🗓️ {{ aviso.fecha_cita.strftime('%d/%m/%Y') }}{% if aviso.hora_cita %} · {{ aviso.hora_cita }}
+            <span class="text-muted fw-normal small">({{ aviso.duracion_label }})</span>{% endif %}
+          </div>
+          {% if aviso.atrasado %}
+          <span class="badge bg-danger-subtle text-danger border border-danger-subtle">⏰ Atrasado</span>
+          {% endif %}
           {% else %}
           <div class="text-muted fst-italic small">— Sin cita programada</div>
           {% endif %}
@@ -235,6 +241,7 @@
             {{ aviso.estado_label() }}
           </span>
         </div>
+        {% if puede_editar %}
         <div>
           <div class="text-muted small mb-1">Cambiar estado:</div>
           <select class="form-select estado-select" data-aviso-id="{{ aviso.id }}">
@@ -244,6 +251,7 @@
           </select>
           <div id="estado-feedback" class="small mt-1"></div>
         </div>
+        {% endif %}
       </div>
     </div>
 
@@ -292,7 +300,29 @@
       </div>
     </div>
 
-    <!-- Historial -->
+    <!-- Historial de cambios -->
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header fw-semibold">📜 Historial de cambios</div>
+      <div class="card-body small p-0">
+        {% for cambio in historial %}
+        <div class="px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
+          <div>
+            <span class="fw-semibold">{{ cambio.campo_label }}:</span>
+            <span class="text-muted">{{ cambio.valor_anterior }}</span> →
+            <span class="fw-semibold">{{ cambio.valor_nuevo }}</span>
+          </div>
+          <div class="text-muted" style="font-size:0.75rem">
+            {{ cambio.usuario.display_name if cambio.usuario else 'Sistema' }} ·
+            {{ cambio.fecha_local.strftime('%d/%m/%Y %H:%M') }}
+          </div>
+        </div>
+        {% else %}
+        <div class="px-3 py-2 text-muted fst-italic">Sin cambios registrados.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Auditoría -->
     <div class="card shadow-sm border-0">
       <div class="card-header fw-semibold">🕐 Auditoría</div>
       <div class="card-body small text-muted">
@@ -350,6 +380,9 @@ document.querySelectorAll('.estado-select').forEach(sel => {
         feedback.textContent = '✓ Guardado';
         feedback.className = 'small mt-1 text-success';
         setTimeout(() => { feedback.textContent = ''; }, 2000);
+      } else {
+        feedback.textContent = data.error || 'Error al guardar';
+        feedback.className = 'small mt-1 text-danger';
       }
     })
     .catch(() => {

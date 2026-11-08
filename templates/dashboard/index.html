@@ -7,6 +7,14 @@
   <small class="text-muted">{{ hoy.strftime('%A, %d de %B de %Y') }}</small>
 </div>
 
+{% if contadores.atrasados %}
+<a href="{{ url_for('avisos.list_all', atrasados=1, orden='cita_asc') }}"
+   class="alert alert-warning d-flex justify-content-between align-items-center py-2 text-decoration-none">
+  <span>⚠️ <strong>{{ contadores.atrasados }}</strong> cita{{ 's' if contadores.atrasados != 1 }} atrasada{{ 's' if contadores.atrasados != 1 }} sin finalizar</span>
+  <span class="small fw-semibold">Ver →</span>
+</a>
+{% endif %}
+
 <!-- Tarjetas de contadores -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-4 col-xl-2">

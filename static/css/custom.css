@@ -300,6 +300,6 @@ body {
 /* ── Print ───────────────────────────────────────────────────────── */
 @media print {
   .navbar, .eb-bottom-nav, .eb-mobile-search, .btn, form { display: none !important; }
-  body { padding-top: 0; }
+  body { padding-top: 0 !important; }
   .eb-content { margin-top: 0; }
 }

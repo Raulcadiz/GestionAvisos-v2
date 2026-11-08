@@ -112,6 +112,11 @@ def _migrar_columnas():
             conn.execute(text("ALTER TABLE aviso ADD COLUMN hora_cita VARCHAR(5)"))
         if 'items_instalacion' not in aviso_cols:
             conn.execute(text("ALTER TABLE aviso ADD COLUMN items_instalacion TEXT"))
+        if 'duracion_min' not in aviso_cols:
+            conn.execute(text("ALTER TABLE aviso ADD COLUMN duracion_min INTEGER DEFAULT 60"))
+
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_aviso_fecha_cita ON aviso (fecha_cita)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_aviso_asignado_a ON aviso (asignado_a)"))
 
         conn.commit()
 
