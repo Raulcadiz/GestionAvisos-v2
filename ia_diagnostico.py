@@ -30,6 +30,7 @@ from functools import wraps
 from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
+from ia_groq import MODELO_TEXTO, MODELO_VISION, cargar_claves, crear_respuesta
 from models import ELECTRODOMESTICOS
 
 logger = logging.getLogger(__name__)
@@ -52,29 +53,37 @@ def _admin_required(f):
 # ─── Configuración ──────────────────────────────────────────────────────────
 
 DEFAULTS = {
-    'provider':            'ollama',
+    'provider':            'groq',
     'ollama_texto_model':  'llama3.2',
     'ollama_vision_model': 'llava',
-    'groq_model':          'llama-3.1-8b-instant',
+    'groq_model':          MODELO_TEXTO,
+    'groq_vision_model':   MODELO_VISION,
     'anthropic_model':     'claude-3-5-haiku-20241022',
     'openai_model':        'gpt-4o-mini',
 }
 
-# Modelos Groq activos (actualizados 2026 — ver console.groq.com/docs/models)
+# Modelos Groq activos (ver console.groq.com/docs/models)
 GROQ_MODELS = [
-    ('llama-3.1-8b-instant',        'Llama 3.1 8B — rapidísimo, gratis ⭐'),
-    ('llama-3.3-70b-versatile',     'Llama 3.3 70B — más potente, gratis'),
-    ('llama-3.2-11b-vision-preview','Llama 3.2 11B Vision — texto + imagen, gratis'),
-    ('llama-3.2-90b-vision-preview','Llama 3.2 90B Vision — visión potente, gratis'),
-    ('gemma2-9b-it',                'Gemma 2 9B — Google (puede estar deprecado)'),
+    ('openai/gpt-oss-20b',  'GPT OSS 20B — rápido ⭐'),
+    ('openai/gpt-oss-120b', 'GPT OSS 120B — más potente'),
+    ('qwen/qwen3.8-27b',    'Qwen 3.8 27B — texto e imagen'),
 ]
 
-# Tabla de migración: modelos Groq antiguos → sustituto actual
+GROQ_VISION_MODELS = [
+    ('qwen/qwen3.8-27b', 'Qwen 3.8 27B — texto e imagen ⭐'),
+]
+
+# Tabla de migración: modelos Groq retirados → sustituto actual
 _GROQ_DEPRECATED = {
-    'llama3-8b-8192':    'llama-3.1-8b-instant',
-    'llama3-70b-8192':   'llama-3.3-70b-versatile',
-    'mixtral-8x7b-32768':'llama-3.3-70b-versatile',
-    'gemma-7b-it':       'llama-3.1-8b-instant',
+    'llama3-8b-8192':               MODELO_TEXTO,
+    'llama3-70b-8192':              MODELO_TEXTO,
+    'mixtral-8x7b-32768':           MODELO_TEXTO,
+    'gemma-7b-it':                  MODELO_TEXTO,
+    'gemma2-9b-it':                 MODELO_TEXTO,
+    'llama-3.1-8b-instant':         MODELO_TEXTO,
+    'llama-3.3-70b-versatile':      MODELO_TEXTO,
+    'llama-3.2-11b-vision-preview': MODELO_TEXTO,
+    'llama-3.2-90b-vision-preview': MODELO_TEXTO,
 }
 
 ANTHROPIC_MODELS = [
@@ -204,17 +213,9 @@ def _llamar_ollama(texto: str, imagen_b64: str | None, cfg: dict) -> tuple[str, 
 
 
 def _llamar_groq(texto: str, imagen_b64: str | None, imagen_mt: str | None, cfg: dict) -> tuple[str, str]:
-    """Groq — texto y visión (modelos llama-3.2-*-vision-preview)."""
-    from groq import Groq as _Groq
-    api_key = os.environ.get('GROQ_API_KEY', '')
-    if not api_key:
-        raise RuntimeError("GROQ_API_KEY no configurada en .env")
-    client = _Groq(api_key=api_key)
-    model = cfg['groq_model']
-
-    # Soporte visión para modelos Groq que lo admiten
-    es_vision = 'vision' in model and imagen_b64 and imagen_mt
-    if es_vision:
+    """Groq — texto y visión, con rotación de claves."""
+    if imagen_b64 and imagen_mt:
+        model = cfg['groq_vision_model']
         user_content = [
             {'type': 'text', 'text': texto},
             {'type': 'image_url', 'image_url': {
@@ -222,15 +223,16 @@ def _llamar_groq(texto: str, imagen_b64: str | None, imagen_mt: str | None, cfg:
             }},
         ]
     else:
+        model = cfg['groq_model']
         user_content = texto
 
-    resp = client.chat.completions.create(
+    resp = crear_respuesta(
         model=model,
         messages=[
             {'role': 'system', 'content': SYSTEM_PROMPT},
             {'role': 'user',   'content': user_content},
         ],
-        max_tokens=1024,
+        max_tokens=2048,
         temperature=0.2,
     )
     return resp.choices[0].message.content, model
@@ -385,20 +387,24 @@ def admin_config():
             'ollama_texto_model':  request.form.get('ollama_texto_model',  DEFAULTS['ollama_texto_model']),
             'ollama_vision_model': request.form.get('ollama_vision_model', DEFAULTS['ollama_vision_model']),
             'groq_model':          request.form.get('groq_model',          DEFAULTS['groq_model']),
+            'groq_vision_model':   request.form.get('groq_vision_model',   DEFAULTS['groq_vision_model']),
             'anthropic_model':     request.form.get('anthropic_model',     DEFAULTS['anthropic_model']),
             'openai_model':        request.form.get('openai_model',        DEFAULTS['openai_model']),
         })
         flash('Configuración IA guardada correctamente.', 'success')
         return redirect(url_for('ia.admin_config'))
 
+    claves_groq = cargar_claves()
     return render_template(
         'admin/ia_config.html',
         cfg=cfg,
         ollama_populares=OLLAMA_POPULARES,
         groq_models=GROQ_MODELS,
+        groq_vision_models=GROQ_VISION_MODELS,
         anthropic_models=ANTHROPIC_MODELS,
         openai_models=OPENAI_MODELS,
-        groq_key_ok=bool(os.environ.get('GROQ_API_KEY')),
+        groq_claves=len(claves_groq),
+        groq_key_ok=bool(claves_groq),
         anthropic_key_ok=bool(os.environ.get('ANTHROPIC_API_KEY')),
         openai_key_ok=bool(os.environ.get('OPENAI_API_KEY')),
     )

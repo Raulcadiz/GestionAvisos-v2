@@ -36,6 +36,7 @@ def create_app(config_class=Config):
     from estadisticas import estadisticas_bp
     from calendario import calendario_bp
     from ia_diagnostico import ia_bp
+    from ia_aviso_foto import ia_aviso_foto_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -46,6 +47,7 @@ def create_app(config_class=Config):
     app.register_blueprint(estadisticas_bp)
     app.register_blueprint(calendario_bp)
     app.register_blueprint(ia_bp)
+    app.register_blueprint(ia_aviso_foto_bp)
 
     with app.app_context():
         from models import User, Aviso, Photo  # noqa: F401

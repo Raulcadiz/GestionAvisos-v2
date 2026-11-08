@@ -1,5 +1,6 @@
 # Entorno y secretos
 .env
+groq.txt
 *.pyc
 __pycache__/
 *.pyo

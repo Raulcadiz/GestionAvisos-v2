@@ -9,11 +9,24 @@
   <a href="{{ url_for('dashboard.index') }}" class="btn btn-sm btn-outline-secondary">← Volver</a>
 </div>
 
-<form method="POST"
+<form method="POST" {% if not aviso %}id="form-aviso"{% endif %}
       action="{% if aviso %}{{ url_for('avisos.edit', id=aviso.id) }}{% else %}{{ url_for('avisos.create') }}{% endif %}"
       enctype="multipart/form-data">
 
   <div class="row g-3">
+
+    {% if not aviso %}
+    <!-- Rellenar desde una foto -->
+    <div class="col-12">
+      <div class="eb-foto-aviso d-flex flex-wrap align-items-center gap-2">
+        <label class="btn btn-primary fw-semibold mb-0">
+          📷 Rellenar desde foto
+          <input type="file" accept="image/*" class="d-none eb-foto-aviso-input">
+        </label>
+        <span class="eb-foto-estado small text-muted">Haz una foto al parte o nota y revisa los datos antes de guardar.</span>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Tipo de servicio (prominente, al principio) -->
     <div class="col-12">

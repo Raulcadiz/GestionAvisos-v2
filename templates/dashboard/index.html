@@ -7,6 +7,16 @@
   <small class="text-muted">{{ hoy.strftime('%A, %d de %B de %Y') }}</small>
 </div>
 
+{% if current_user.es_admin_o_superior %}
+<div class="eb-foto-aviso d-flex flex-wrap align-items-center gap-2 mb-3">
+  <label class="btn btn-primary fw-semibold mb-0">
+    📷 Nuevo aviso desde foto
+    <input type="file" accept="image/*" class="d-none eb-foto-aviso-input">
+  </label>
+  <span class="eb-foto-estado small"></span>
+</div>
+{% endif %}
+
 {% if contadores.atrasados %}
 <a href="{{ url_for('avisos.list_all', atrasados=1, orden='cita_asc') }}"
    class="alert alert-warning d-flex justify-content-between align-items-center py-2 text-decoration-none">
